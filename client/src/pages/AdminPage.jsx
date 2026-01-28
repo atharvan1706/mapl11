@@ -1,0 +1,606 @@
+import { useState, useEffect } from 'react'
+import api from '../services/api'
+import { useToast } from '../hooks/useToast'
+import Loading from '../components/common/Loading'
+
+export default function AdminPage() {
+  const { success, error: showError } = useToast()
+  const [apiStatus, setApiStatus] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [series, setSeries] = useState([])
+  const [liveMatches, setLiveMatches] = useState([])
+  const [selectedSeriesId, setSelectedSeriesId] = useState('')
+
+  // Player management state
+  const [activeTab, setActiveTab] = useState('sync')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const [dbPlayers, setDbPlayers] = useState([])
+  const [loadingPlayers, setLoadingPlayers] = useState(false)
+  const [teamName, setTeamName] = useState('')
+  const [teamShortName, setTeamShortName] = useState('')
+
+  useEffect(() => {
+    checkApiStatus()
+  }, [])
+
+  const checkApiStatus = async () => {
+    try {
+      const response = await api.get('/admin/api-status')
+      setApiStatus(response.data)
+    } catch (err) {
+      showError('Failed to check API status')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchSeries = async () => {
+    try {
+      setSyncing(true)
+      const response = await api.get('/admin/series')
+      setSeries(response.data || [])
+      success(`Found ${response.count} series`)
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const fetchLiveMatches = async () => {
+    try {
+      setSyncing(true)
+      const response = await api.get('/admin/live-matches')
+      setLiveMatches(response.data || [])
+      success(`Found ${response.count} India matches (${response.allMatchesCount} total)`)
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const syncMatches = async () => {
+    try {
+      setSyncing(true)
+      const body = selectedSeriesId ? { seriesId: selectedSeriesId } : {}
+      const response = await api.post('/admin/sync-matches', body)
+      success(`Synced ${response.data.synced} new, updated ${response.data.updated} matches`)
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const syncPlayers = async () => {
+    if (!selectedSeriesId) {
+      showError('Please select a series first')
+      return
+    }
+    try {
+      setSyncing(true)
+      const response = await api.post('/admin/sync-players', {
+        seriesId: selectedSeriesId,
+        teamNames: ['india', 'pakistan', 'australia', 'england', 'south africa']
+      })
+      success(`Synced ${response.data.synced} new, updated ${response.data.updated} players`)
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const updateLiveScores = async () => {
+    try {
+      setSyncing(true)
+      const response = await api.post('/admin/update-live-scores')
+      success(`Updated ${response.data.updated} live matches`)
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  // Player search functions
+  const searchPlayers = async () => {
+    if (!searchQuery || searchQuery.length < 2) {
+      showError('Enter at least 2 characters to search')
+      return
+    }
+    try {
+      setSearching(true)
+      const response = await api.get(`/admin/search-players?q=${encodeURIComponent(searchQuery)}`)
+      setSearchResults(response.data || [])
+      if (response.data?.length === 0) {
+        showError('No players found')
+      } else {
+        success(`Found ${response.count} players`)
+      }
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSearching(false)
+    }
+  }
+
+  const addPlayer = async (player) => {
+    try {
+      const response = await api.post('/admin/add-player', {
+        playerId: player.id,
+        team: player.country || 'UNK'
+      })
+      if (response.message === 'Player already exists in database') {
+        showError('Player already exists')
+      } else {
+        success(`Added ${player.name}`)
+      }
+      // Refresh DB players if on that tab
+      if (activeTab === 'database') {
+        fetchDbPlayers()
+      }
+    } catch (err) {
+      showError(err.message)
+    }
+  }
+
+  const addTeamPlayersFromApi = async () => {
+    if (!teamName) {
+      showError('Enter a team name')
+      return
+    }
+    try {
+      setSyncing(true)
+      const response = await api.post('/admin/add-team-players', {
+        teamName,
+        teamShortName: teamShortName || teamName.substring(0, 3).toUpperCase()
+      })
+      success(`Found ${response.data.found}, added ${response.data.added}, skipped ${response.data.skipped} players`)
+      setTeamName('')
+      setTeamShortName('')
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const fetchDbPlayers = async () => {
+    try {
+      setLoadingPlayers(true)
+      const response = await api.get('/admin/players')
+      setDbPlayers(response.data || [])
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setLoadingPlayers(false)
+    }
+  }
+
+  const deletePlayerFromDb = async (playerId, playerName) => {
+    if (!confirm(`Delete ${playerName}?`)) return
+    try {
+      await api.delete(`/admin/players/${playerId}`)
+      success(`Deleted ${playerName}`)
+      fetchDbPlayers()
+    } catch (err) {
+      showError(err.message)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'database') {
+      fetchDbPlayers()
+    }
+  }, [activeTab])
+
+  if (loading) return <Loading />
+
+  return (
+    <div className="admin-page">
+      <h1 className="mb-md">Admin Panel</h1>
+
+      {/* API Status */}
+      <div className="card mb-md">
+        <div className="card-header">Cricket API Status</div>
+        <div className="card-body">
+          {apiStatus?.configured ? (
+            <div className={`status-badge ${apiStatus.connected ? 'success' : 'error'}`}>
+              {apiStatus.connected ? 'Connected' : 'Not Connected'}
+            </div>
+          ) : (
+            <div className="status-badge warning">
+              API Key Not Configured
+            </div>
+          )}
+          {!apiStatus?.configured && (
+            <p className="text-sm text-gray mt-sm">
+              Add your CricketData.org API key to server/.env file:<br/>
+              <code>CRICKET_API_KEY=your-api-key</code>
+            </p>
+          )}
+        </div>
+      </div>
+
+      {apiStatus?.configured && (
+        <>
+          {/* Tabs */}
+          <div className="tabs mb-md">
+            <button
+              className={`tab ${activeTab === 'sync' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sync')}
+            >
+              Sync Data
+            </button>
+            <button
+              className={`tab ${activeTab === 'players' ? 'active' : ''}`}
+              onClick={() => setActiveTab('players')}
+            >
+              Add Players
+            </button>
+            <button
+              className={`tab ${activeTab === 'database' ? 'active' : ''}`}
+              onClick={() => setActiveTab('database')}
+            >
+              Database ({dbPlayers.length})
+            </button>
+          </div>
+
+          {/* Sync Tab */}
+          {activeTab === 'sync' && (
+            <>
+              {/* Fetch Data */}
+              <div className="card mb-md">
+                <div className="card-header">Fetch from API</div>
+                <div className="card-body">
+                  <div className="btn-group">
+                    <button
+                      className="btn btn-secondary"
+                      onClick={fetchSeries}
+                      disabled={syncing}
+                    >
+                      Get Series
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={fetchLiveMatches}
+                      disabled={syncing}
+                    >
+                      Get Live Matches
+                    </button>
+                  </div>
+
+                  {/* Series List */}
+                  {series.length > 0 && (
+                    <div className="mt-md">
+                      <label className="form-label">Select Series:</label>
+                      <select
+                        className="form-input"
+                        value={selectedSeriesId}
+                        onChange={(e) => setSelectedSeriesId(e.target.value)}
+                      >
+                        <option value="">-- Select --</option>
+                        {series.map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Live Matches */}
+                  {liveMatches.length > 0 && (
+                    <div className="mt-md">
+                      <h4>Live/Current Matches:</h4>
+                      <div className="matches-list">
+                        {liveMatches.map(m => (
+                          <div key={m.id} className="match-item">
+                            <div className="match-name">{m.name}</div>
+                            <div className="match-status text-sm text-gray">
+                              {m.status} | {m.venue}
+                            </div>
+                            <code className="text-xs">ID: {m.id}</code>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sync Actions */}
+              <div className="card mb-md">
+                <div className="card-header">Sync to Database</div>
+                <div className="card-body">
+                  <div className="btn-group">
+                    <button
+                      className="btn btn-primary"
+                      onClick={syncMatches}
+                      disabled={syncing}
+                    >
+                      {syncing ? 'Syncing...' : 'Sync Matches'}
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={syncPlayers}
+                      disabled={syncing || !selectedSeriesId}
+                    >
+                      {syncing ? 'Syncing...' : 'Sync Squad'}
+                    </button>
+                    <button
+                      className="btn btn-success"
+                      onClick={updateLiveScores}
+                      disabled={syncing}
+                    >
+                      Update Live Scores
+                    </button>
+                  </div>
+                  {!selectedSeriesId && (
+                    <p className="text-sm text-gray mt-sm">
+                      Select a series above to sync squad
+                    </p>
+                  )}
+                  <p className="text-sm text-gray mt-sm">
+                    Note: If squad sync doesn't work, use "Add Players" tab to search and add players manually.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Add Players Tab */}
+          {activeTab === 'players' && (
+            <>
+              {/* Search Players */}
+              <div className="card mb-md">
+                <div className="card-header">Search Players in API</div>
+                <div className="card-body">
+                  <div className="search-row">
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Search player name (e.g., Virat, Rohit)"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && searchPlayers()}
+                    />
+                    <button
+                      className="btn btn-primary"
+                      onClick={searchPlayers}
+                      disabled={searching}
+                    >
+                      {searching ? 'Searching...' : 'Search'}
+                    </button>
+                  </div>
+
+                  {/* Search Results */}
+                  {searchResults.length > 0 && (
+                    <div className="mt-md">
+                      <h4>Search Results ({searchResults.length}):</h4>
+                      <div className="player-list">
+                        {searchResults.map(player => (
+                          <div key={player.id} className="player-item">
+                            <div className="player-info">
+                              <div className="player-name">{player.name}</div>
+                              <div className="player-details text-sm text-gray">
+                                {player.country || 'Unknown'} | {player.role || 'Unknown Role'}
+                              </div>
+                            </div>
+                            <button
+                              className="btn btn-sm btn-success"
+                              onClick={() => addPlayer(player)}
+                            >
+                              Add
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bulk Add by Team */}
+              <div className="card mb-md">
+                <div className="card-header">Bulk Add Players by Team</div>
+                <div className="card-body">
+                  <p className="text-sm text-gray mb-sm">
+                    Search and add all players from a team (e.g., "India", "Australia")
+                  </p>
+                  <div className="form-group">
+                    <label className="form-label">Team Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g., India, Australia"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Team Short Name (optional)</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g., IND, AUS (auto-generated if empty)"
+                      value={teamShortName}
+                      onChange={(e) => setTeamShortName(e.target.value.toUpperCase())}
+                      maxLength={5}
+                    />
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    onClick={addTeamPlayersFromApi}
+                    disabled={syncing || !teamName}
+                  >
+                    {syncing ? 'Adding...' : 'Add Team Players'}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Database Tab */}
+          {activeTab === 'database' && (
+            <div className="card mb-md">
+              <div className="card-header">
+                Players in Database ({dbPlayers.length})
+                <button
+                  className="btn btn-sm btn-secondary ml-auto"
+                  onClick={fetchDbPlayers}
+                  disabled={loadingPlayers}
+                >
+                  Refresh
+                </button>
+              </div>
+              <div className="card-body">
+                {loadingPlayers ? (
+                  <Loading />
+                ) : dbPlayers.length === 0 ? (
+                  <p className="text-gray">No players in database. Use "Add Players" tab to add some.</p>
+                ) : (
+                  <div className="player-list">
+                    {dbPlayers.map(player => (
+                      <div key={player._id} className="player-item">
+                        <div className="player-info">
+                          <div className="player-name">{player.name}</div>
+                          <div className="player-details text-sm text-gray">
+                            {player.team} | {player.role} | {player.creditValue} credits
+                          </div>
+                        </div>
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={() => deletePlayerFromDb(player._id, player.name)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <style>{`
+        .status-badge {
+          display: inline-block;
+          padding: var(--spacing-xs) var(--spacing-md);
+          border-radius: var(--radius-full);
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+        .status-badge.success {
+          background: rgba(22, 163, 74, 0.1);
+          color: var(--success);
+        }
+        .status-badge.error {
+          background: rgba(220, 38, 38, 0.1);
+          color: var(--danger);
+        }
+        .status-badge.warning {
+          background: rgba(217, 119, 6, 0.1);
+          color: var(--warning);
+        }
+        .btn-group {
+          display: flex;
+          flex-wrap: wrap;
+          gap: var(--spacing-sm);
+        }
+        code {
+          background: var(--gray-100);
+          padding: 2px 6px;
+          border-radius: var(--radius-sm);
+          font-size: 0.75rem;
+        }
+        .match-item {
+          padding: var(--spacing-sm);
+          border: 1px solid var(--gray-200);
+          border-radius: var(--radius-md);
+          margin-bottom: var(--spacing-sm);
+        }
+        .match-name {
+          font-weight: 600;
+        }
+        .tabs {
+          display: flex;
+          gap: var(--spacing-xs);
+          border-bottom: 2px solid var(--gray-200);
+          padding-bottom: var(--spacing-xs);
+        }
+        .tab {
+          padding: var(--spacing-sm) var(--spacing-md);
+          border: none;
+          background: transparent;
+          cursor: pointer;
+          font-size: 0.9rem;
+          font-weight: 500;
+          color: var(--gray-600);
+          border-radius: var(--radius-md) var(--radius-md) 0 0;
+        }
+        .tab.active {
+          background: var(--primary);
+          color: white;
+        }
+        .tab:hover:not(.active) {
+          background: var(--gray-100);
+        }
+        .search-row {
+          display: flex;
+          gap: var(--spacing-sm);
+        }
+        .search-row .form-input {
+          flex: 1;
+        }
+        .player-list {
+          max-height: 400px;
+          overflow-y: auto;
+        }
+        .player-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: var(--spacing-sm);
+          border: 1px solid var(--gray-200);
+          border-radius: var(--radius-md);
+          margin-bottom: var(--spacing-sm);
+        }
+        .player-info {
+          flex: 1;
+        }
+        .player-name {
+          font-weight: 600;
+        }
+        .player-details {
+          font-size: 0.8rem;
+        }
+        .btn-sm {
+          padding: var(--spacing-xs) var(--spacing-sm);
+          font-size: 0.8rem;
+        }
+        .btn-danger {
+          background: var(--danger);
+          color: white;
+        }
+        .form-group {
+          margin-bottom: var(--spacing-sm);
+        }
+        .card-header {
+          display: flex;
+          align-items: center;
+        }
+        .ml-auto {
+          margin-left: auto;
+        }
+      `}</style>
+    </div>
+  )
+}
