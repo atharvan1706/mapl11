@@ -164,7 +164,21 @@ export default function TeamBuilderPage() {
                   className={`player-card ${isSelected ? 'selected' : ''} ${!canSelect ? 'disabled' : ''}`}
                   onClick={() => canSelect && togglePlayer(player._id)}
                 >
-                  <div className="player-avatar">{player.name.charAt(0)}</div>
+                  <div className="player-avatar">
+                    {player.image ? (
+                      <img
+                        src={player.image}
+                        alt={player.name}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <span className="avatar-fallback" style={{ display: player.image ? 'none' : 'flex' }}>
+                      {player.name.charAt(0)}
+                    </span>
+                  </div>
                   <div className="player-info">
                     <div className="player-name">{player.name}</div>
                     <div className="player-role">{player.team} - {player.role}</div>
@@ -202,9 +216,18 @@ export default function TeamBuilderPage() {
 
               {selectedPlayerObjects.map(player => (
                 <div key={player._id} className="captain-row">
-                  <div className="player-info">
-                    <div className="player-name">{player.name}</div>
-                    <div className="player-role">{player.role}</div>
+                  <div className="captain-player">
+                    <div className="player-avatar small">
+                      {player.image ? (
+                        <img src={player.image} alt={player.name} />
+                      ) : (
+                        <span className="avatar-fallback">{player.name.charAt(0)}</span>
+                      )}
+                    </div>
+                    <div className="player-info">
+                      <div className="player-name">{player.name}</div>
+                      <div className="player-role">{player.role}</div>
+                    </div>
                   </div>
                   <div className="captain-buttons">
                     <button
@@ -252,6 +275,36 @@ export default function TeamBuilderPage() {
           opacity: 0.5;
           cursor: not-allowed;
         }
+        .player-avatar {
+          position: relative;
+          overflow: hidden;
+        }
+        .player-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: inherit;
+        }
+        .player-avatar .avatar-fallback {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 700;
+          font-size: 1rem;
+          color: white;
+        }
+        .player-avatar.small {
+          width: 36px;
+          height: 36px;
+          border-radius: var(--radius-md);
+          background: var(--primary-gradient);
+          flex-shrink: 0;
+        }
+        .player-avatar.small .avatar-fallback {
+          font-size: 0.85rem;
+        }
         .player-check {
           margin-left: var(--spacing-sm);
         }
@@ -264,6 +317,11 @@ export default function TeamBuilderPage() {
         }
         .captain-row:last-child {
           border-bottom: none;
+        }
+        .captain-player {
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-sm);
         }
         .captain-buttons {
           display: flex;

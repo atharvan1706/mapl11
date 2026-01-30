@@ -4,8 +4,11 @@
  */
 
 const cricketApiService = require('../services/cricketApiService');
+const scoringService = require('../services/scoringService');
 const Match = require('../models/Match');
 const Player = require('../models/Player');
+const FantasyTeam = require('../models/FantasyTeam');
+const Prediction = require('../models/Prediction');
 const ApiError = require('../utils/ApiError');
 
 /**
@@ -38,12 +41,14 @@ const checkApiStatus = async (req, res, next) => {
         }
       });
     } catch (apiError) {
+      const errorMsg = apiError.message || 'Unknown API error';
+      console.error('API connection test failed:', errorMsg);
       res.json({
         success: true,
         data: {
           configured: true,
           connected: false,
-          error: apiError.message
+          error: errorMsg
         }
       });
     }
@@ -55,6 +60,8 @@ const checkApiStatus = async (req, res, next) => {
 /**
  * Get available series/tournaments from API
  * GET /api/admin/series
+ * Query params:
+ *   - search: optional search term to filter series by name
  */
 const getAvailableSeries = async (req, res, next) => {
   try {
@@ -62,14 +69,20 @@ const getAvailableSeries = async (req, res, next) => {
       return next(new ApiError(400, 'Cricket API key not configured'));
     }
 
+    const { search } = req.query;
     const series = await cricketApiService.getSeries();
 
-    // Filter for T20 World Cup or India matches if needed
-    const filteredSeries = series.filter(s =>
-      s.name?.toLowerCase().includes('t20') ||
-      s.name?.toLowerCase().includes('world cup') ||
-      s.name?.toLowerCase().includes('india')
-    );
+    // Log all series names for debugging
+    console.log('All series from API:', series.map(s => s.name));
+
+    // If search is provided, filter by search term
+    let filteredSeries = series;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredSeries = series.filter(s =>
+        s.name?.toLowerCase().includes(searchLower)
+      );
+    }
 
     res.json({
       success: true,
@@ -579,6 +592,366 @@ const deletePlayer = async (req, res, next) => {
   }
 };
 
+/**
+ * Manually create a match
+ * POST /api/admin/create-match
+ */
+const createMatch = async (req, res, next) => {
+  try {
+    const {
+      team1Name,
+      team1ShortName,
+      team2Name,
+      team2ShortName,
+      venue,
+      matchDate,
+      matchTime
+    } = req.body;
+
+    // Validate required fields
+    if (!team1Name || !team2Name || !venue || !matchDate) {
+      return next(new ApiError(400, 'Missing required fields: team1Name, team2Name, venue, matchDate'));
+    }
+
+    // Parse date and time
+    const dateTime = matchTime
+      ? new Date(`${matchDate}T${matchTime}:00`)
+      : new Date(matchDate);
+
+    // Generate a unique external ID for manual matches
+    const externalMatchId = `manual_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    const matchData = {
+      externalMatchId,
+      team1: {
+        name: team1Name,
+        shortName: team1ShortName || team1Name.substring(0, 3).toUpperCase(),
+        logo: ''
+      },
+      team2: {
+        name: team2Name,
+        shortName: team2ShortName || team2Name.substring(0, 3).toUpperCase(),
+        logo: ''
+      },
+      venue,
+      matchDate: dateTime,
+      startTime: dateTime,
+      status: 'upcoming',
+      lockTime: new Date(dateTime.getTime() - 15 * 60 * 1000), // 15 min before
+      isTeamSelectionOpen: true
+    };
+
+    const match = await Match.create(matchData);
+
+    res.status(201).json({
+      success: true,
+      data: match
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update match status
+ * PATCH /api/admin/matches/:id/status
+ */
+const updateMatchStatus = async (req, res, next) => {
+  try {
+    const { status } = req.body;
+
+    if (!['upcoming', 'live', 'completed'].includes(status)) {
+      return next(new ApiError(400, 'Invalid status. Must be: upcoming, live, or completed'));
+    }
+
+    const match = await Match.findByIdAndUpdate(
+      req.params.id,
+      {
+        status,
+        isTeamSelectionOpen: status === 'upcoming'
+      },
+      { new: true }
+    );
+
+    if (!match) {
+      return next(new ApiError(404, 'Match not found'));
+    }
+
+    res.json({
+      success: true,
+      data: match
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get all matches from database
+ * GET /api/admin/matches
+ */
+const getMatchesFromDb = async (req, res, next) => {
+  try {
+    const { status } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
+
+    const matches = await Match.find(filter).sort({ matchDate: 1 });
+
+    res.json({
+      success: true,
+      count: matches.length,
+      data: matches
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete a match
+ * DELETE /api/admin/matches/:id
+ */
+const deleteMatch = async (req, res, next) => {
+  try {
+    const match = await Match.findByIdAndDelete(req.params.id);
+
+    if (!match) {
+      return next(new ApiError(404, 'Match not found'));
+    }
+
+    res.json({
+      success: true,
+      message: 'Match deleted'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Calculate fantasy points for a match
+ * POST /api/admin/calculate-points/:matchId
+ *
+ * This can work in two modes:
+ * 1. Automatic: Fetches scorecard from API and calculates points
+ * 2. Manual: Admin provides player points directly
+ */
+const calculateFantasyPoints = async (req, res, next) => {
+  try {
+    const { matchId } = req.params;
+    const { playerPoints, useApi } = req.body;
+
+    const match = await Match.findById(matchId);
+    if (!match) {
+      return next(new ApiError(404, 'Match not found'));
+    }
+
+    // Get all fantasy teams for this match
+    const fantasyTeams = await FantasyTeam.find({ matchId })
+      .populate('players.playerId', 'name externalPlayerId');
+
+    if (fantasyTeams.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No fantasy teams found for this match',
+        data: { teamsUpdated: 0 }
+      });
+    }
+
+    let playerPointsMap = {};
+
+    if (useApi && match.externalMatchId && cricketApiService.isApiConfigured()) {
+      // Try to fetch from API
+      try {
+        const scorecard = await cricketApiService.getMatchScorecard(match.externalMatchId);
+
+        if (scorecard && scorecard.scoreCard) {
+          // Process batting stats
+          for (const innings of scorecard.scoreCard) {
+            for (const batsman of (innings.batsman || [])) {
+              const stats = {
+                batting: {
+                  runs: batsman.runs || 0,
+                  fours: batsman['4s'] || 0,
+                  sixes: batsman['6s'] || 0,
+                  ballsFaced: batsman.balls || 0,
+                  isOut: batsman.dismissal !== 'not out'
+                },
+                bowling: {},
+                fielding: {}
+              };
+
+              // Find player in our database by external ID or name
+              const player = await Player.findOne({
+                $or: [
+                  { externalPlayerId: batsman.id },
+                  { name: new RegExp(batsman.name?.split(' ').pop(), 'i') }
+                ]
+              });
+
+              if (player) {
+                const points = scoringService.calculatePlayerPoints(stats);
+                playerPointsMap[player._id.toString()] = (playerPointsMap[player._id.toString()] || 0) + points;
+              }
+            }
+
+            // Process bowling stats
+            for (const bowler of (innings.bowler || [])) {
+              const stats = {
+                batting: {},
+                bowling: {
+                  wickets: bowler.wickets || 0,
+                  overs: parseFloat(bowler.overs) || 0,
+                  runsConceded: bowler.runs || 0,
+                  maidens: bowler.maidens || 0
+                },
+                fielding: {}
+              };
+
+              const player = await Player.findOne({
+                $or: [
+                  { externalPlayerId: bowler.id },
+                  { name: new RegExp(bowler.name?.split(' ').pop(), 'i') }
+                ]
+              });
+
+              if (player) {
+                const points = scoringService.calculatePlayerPoints(stats);
+                playerPointsMap[player._id.toString()] = (playerPointsMap[player._id.toString()] || 0) + points;
+              }
+            }
+          }
+        }
+      } catch (apiError) {
+        console.error('API fetch failed:', apiError.message);
+        // Fall back to manual points if provided
+        if (!playerPoints) {
+          return next(new ApiError(400, 'Could not fetch scorecard from API and no manual points provided'));
+        }
+      }
+    }
+
+    // If manual points provided, use them (can supplement or override API points)
+    if (playerPoints && typeof playerPoints === 'object') {
+      for (const [playerId, points] of Object.entries(playerPoints)) {
+        playerPointsMap[playerId] = points;
+      }
+    }
+
+    // If no points calculated, generate random points for testing
+    if (Object.keys(playerPointsMap).length === 0) {
+      // Generate test points for all players in fantasy teams
+      const allPlayerIds = new Set();
+      fantasyTeams.forEach(team => {
+        team.players.forEach(p => allPlayerIds.add(p.playerId._id.toString()));
+      });
+
+      for (const playerId of allPlayerIds) {
+        // Random points between 10-80 for testing
+        playerPointsMap[playerId] = Math.floor(Math.random() * 70) + 10;
+      }
+    }
+
+    // Update each fantasy team with calculated points
+    const results = { teamsUpdated: 0, errors: [] };
+
+    for (const team of fantasyTeams) {
+      try {
+        const totalPoints = scoringService.calculateFantasyTeamPoints(team, playerPointsMap);
+
+        await FantasyTeam.findByIdAndUpdate(team._id, {
+          fantasyPoints: totalPoints,
+          isLocked: true
+        });
+
+        results.teamsUpdated++;
+      } catch (err) {
+        results.errors.push({
+          teamId: team._id,
+          userId: team.userId,
+          error: err.message
+        });
+      }
+    }
+
+    // Also calculate prediction points if match stats are available
+    if (match.statsSnapshot) {
+      const predictions = await Prediction.find({ matchId });
+
+      for (const prediction of predictions) {
+        try {
+          const { totalPoints: predPoints } = scoringService.calculatePredictionPoints(
+            prediction.predictions,
+            match.statsSnapshot
+          );
+
+          await Prediction.findByIdAndUpdate(prediction._id, {
+            totalPredictionPoints: predPoints,
+            isScored: true
+          });
+        } catch (err) {
+          console.error('Error scoring prediction:', err);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...results,
+        playerPointsUsed: Object.keys(playerPointsMap).length
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Set player points manually for a match (for testing/manual scoring)
+ * POST /api/admin/set-player-points/:matchId
+ */
+const setPlayerPoints = async (req, res, next) => {
+  try {
+    const { matchId } = req.params;
+    const { playerPoints } = req.body;
+
+    if (!playerPoints || typeof playerPoints !== 'object') {
+      return next(new ApiError(400, 'playerPoints object is required'));
+    }
+
+    // Forward to calculateFantasyPoints with manual points
+    req.body = { playerPoints, useApi: false };
+    return calculateFantasyPoints(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get fantasy teams for a match (admin view)
+ * GET /api/admin/fantasy-teams/:matchId
+ */
+const getFantasyTeamsForMatch = async (req, res, next) => {
+  try {
+    const { matchId } = req.params;
+
+    const teams = await FantasyTeam.find({ matchId })
+      .populate('userId', 'displayName email')
+      .populate('players.playerId', 'name shortName team role creditValue')
+      .sort({ fantasyPoints: -1 });
+
+    res.json({
+      success: true,
+      count: teams.length,
+      data: teams
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   checkApiStatus,
   getAvailableSeries,
@@ -590,5 +963,12 @@ module.exports = {
   addPlayerFromApi,
   addTeamPlayers,
   getPlayersFromDb,
-  deletePlayer
+  deletePlayer,
+  createMatch,
+  updateMatchStatus,
+  getMatchesFromDb,
+  deleteMatch,
+  calculateFantasyPoints,
+  setPlayerPoints,
+  getFantasyTeamsForMatch
 };

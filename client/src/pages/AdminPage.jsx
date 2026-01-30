@@ -22,6 +22,19 @@ export default function AdminPage() {
   const [teamName, setTeamName] = useState('')
   const [teamShortName, setTeamShortName] = useState('')
 
+  // Match management state
+  const [dbMatches, setDbMatches] = useState([])
+  const [loadingMatches, setLoadingMatches] = useState(false)
+  const [newMatch, setNewMatch] = useState({
+    team1Name: '',
+    team1ShortName: '',
+    team2Name: '',
+    team2ShortName: '',
+    venue: '',
+    matchDate: '',
+    matchTime: ''
+  })
+
   useEffect(() => {
     checkApiStatus()
   }, [])
@@ -197,7 +210,85 @@ export default function AdminPage() {
     if (activeTab === 'database') {
       fetchDbPlayers()
     }
+    if (activeTab === 'matches') {
+      fetchDbMatches()
+    }
   }, [activeTab])
+
+  // Match management functions
+  const fetchDbMatches = async () => {
+    try {
+      setLoadingMatches(true)
+      const response = await api.get('/admin/matches')
+      setDbMatches(response.data || [])
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setLoadingMatches(false)
+    }
+  }
+
+  const createMatch = async () => {
+    if (!newMatch.team1Name || !newMatch.team2Name || !newMatch.venue || !newMatch.matchDate) {
+      showError('Please fill in all required fields')
+      return
+    }
+    try {
+      setSyncing(true)
+      await api.post('/admin/create-match', newMatch)
+      success('Match created successfully!')
+      setNewMatch({
+        team1Name: '',
+        team1ShortName: '',
+        team2Name: '',
+        team2ShortName: '',
+        venue: '',
+        matchDate: '',
+        matchTime: ''
+      })
+      fetchDbMatches()
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const updateMatchStatus = async (matchId, status) => {
+    try {
+      await api.patch(`/admin/matches/${matchId}/status`, { status })
+      success(`Match status updated to ${status}`)
+      fetchDbMatches()
+    } catch (err) {
+      showError(err.message)
+    }
+  }
+
+  const deleteMatchFromDb = async (matchId, matchName) => {
+    if (!confirm(`Delete match "${matchName}"?`)) return
+    try {
+      await api.delete(`/admin/matches/${matchId}`)
+      success('Match deleted')
+      fetchDbMatches()
+    } catch (err) {
+      showError(err.message)
+    }
+  }
+
+  const calculatePoints = async (matchId) => {
+    if (!confirm('Calculate fantasy points for this match? This will generate random test points for all fantasy teams.')) return
+    try {
+      setSyncing(true)
+      const response = await api.post(`/admin/calculate-points/${matchId}`, {
+        useApi: true // Try API first, fall back to random test points
+      })
+      success(`Points calculated for ${response.data.teamsUpdated} teams`)
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   if (loading) return <Loading />
 
@@ -211,12 +302,23 @@ export default function AdminPage() {
         <div className="card-body">
           {apiStatus?.configured ? (
             <div className={`status-badge ${apiStatus.connected ? 'success' : 'error'}`}>
-              {apiStatus.connected ? 'Connected' : 'Not Connected'}
+              {apiStatus.connected ? `Connected (${apiStatus.seriesCount} series)` : 'Not Connected'}
             </div>
           ) : (
             <div className="status-badge warning">
               API Key Not Configured
             </div>
+          )}
+          {apiStatus?.configured && !apiStatus?.connected && apiStatus?.error && (
+            <p className="text-sm text-danger mt-sm">
+              Error: {apiStatus.error}
+            </p>
+          )}
+          {apiStatus?.configured && !apiStatus?.connected && (
+            <p className="text-sm text-gray mt-sm">
+              The CricAPI free tier has 100 requests/day limit. You may have exceeded it, or the API key is invalid.
+              You can still create matches and add players manually using the tabs below.
+            </p>
           )}
           {!apiStatus?.configured && (
             <p className="text-sm text-gray mt-sm">
@@ -227,15 +329,21 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {apiStatus?.configured && (
-        <>
-          {/* Tabs */}
-          <div className="tabs mb-md">
+      {/* Always show tabs - manual operations work without API */}
+      <>
+        {/* Tabs */}
+        <div className="tabs mb-md">
             <button
               className={`tab ${activeTab === 'sync' ? 'active' : ''}`}
               onClick={() => setActiveTab('sync')}
             >
               Sync Data
+            </button>
+            <button
+              className={`tab ${activeTab === 'matches' ? 'active' : ''}`}
+              onClick={() => setActiveTab('matches')}
+            >
+              Matches
             </button>
             <button
               className={`tab ${activeTab === 'players' ? 'active' : ''}`}
@@ -247,7 +355,7 @@ export default function AdminPage() {
               className={`tab ${activeTab === 'database' ? 'active' : ''}`}
               onClick={() => setActiveTab('database')}
             >
-              Database ({dbPlayers.length})
+              Players DB
             </button>
           </div>
 
@@ -349,6 +457,170 @@ export default function AdminPage() {
                   <p className="text-sm text-gray mt-sm">
                     Note: If squad sync doesn't work, use "Add Players" tab to search and add players manually.
                   </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Matches Tab */}
+          {activeTab === 'matches' && (
+            <>
+              {/* Create Match */}
+              <div className="card mb-md">
+                <div className="card-header">Create Match Manually</div>
+                <div className="card-body">
+                  <p className="text-sm text-gray mb-md">
+                    Create a match that isn't available in the API (e.g., NZ vs India)
+                  </p>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Team 1 Name *</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g., India"
+                        value={newMatch.team1Name}
+                        onChange={(e) => setNewMatch({ ...newMatch, team1Name: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Short Name</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g., IND"
+                        value={newMatch.team1ShortName}
+                        onChange={(e) => setNewMatch({ ...newMatch, team1ShortName: e.target.value.toUpperCase() })}
+                        maxLength={5}
+                      />
+                    </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Team 2 Name *</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g., New Zealand"
+                        value={newMatch.team2Name}
+                        onChange={(e) => setNewMatch({ ...newMatch, team2Name: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Short Name</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g., NZ"
+                        value={newMatch.team2ShortName}
+                        onChange={(e) => setNewMatch({ ...newMatch, team2ShortName: e.target.value.toUpperCase() })}
+                        maxLength={5}
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Venue *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="e.g., Eden Gardens, Kolkata"
+                      value={newMatch.venue}
+                      onChange={(e) => setNewMatch({ ...newMatch, venue: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Match Date *</label>
+                      <input
+                        type="date"
+                        className="form-input"
+                        value={newMatch.matchDate}
+                        onChange={(e) => setNewMatch({ ...newMatch, matchDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Match Time</label>
+                      <input
+                        type="time"
+                        className="form-input"
+                        value={newMatch.matchTime}
+                        onChange={(e) => setNewMatch({ ...newMatch, matchTime: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    onClick={createMatch}
+                    disabled={syncing}
+                  >
+                    {syncing ? 'Creating...' : 'Create Match'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Matches in Database */}
+              <div className="card mb-md">
+                <div className="card-header">
+                  Matches in Database ({dbMatches.length})
+                  <button
+                    className="btn btn-sm btn-secondary ml-auto"
+                    onClick={fetchDbMatches}
+                    disabled={loadingMatches}
+                  >
+                    Refresh
+                  </button>
+                </div>
+                <div className="card-body">
+                  {loadingMatches ? (
+                    <Loading />
+                  ) : dbMatches.length === 0 ? (
+                    <p className="text-gray">No matches in database. Create one above or sync from API.</p>
+                  ) : (
+                    <div className="match-list">
+                      {dbMatches.map(match => (
+                        <div key={match._id} className="match-item">
+                          <div className="match-info">
+                            <div className="match-name">
+                              {match.team1.name} vs {match.team2.name}
+                            </div>
+                            <div className="match-details text-sm text-gray">
+                              {match.venue} | {new Date(match.matchDate).toLocaleDateString()}
+                            </div>
+                            <div className="match-status-row">
+                              <span className={`status-badge ${match.status}`}>
+                                {match.status}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="match-actions">
+                            <select
+                              className="form-input form-input-sm"
+                              value={match.status}
+                              onChange={(e) => updateMatchStatus(match._id, e.target.value)}
+                            >
+                              <option value="upcoming">Upcoming</option>
+                              <option value="live">Live</option>
+                              <option value="completed">Completed</option>
+                            </select>
+                            <button
+                              className="btn btn-sm btn-success"
+                              onClick={() => calculatePoints(match._id)}
+                              disabled={syncing}
+                              title="Calculate fantasy points for this match"
+                            >
+                              Calc Points
+                            </button>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => deleteMatchFromDb(match._id, `${match.team1.name} vs ${match.team2.name}`)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -487,8 +759,7 @@ export default function AdminPage() {
               </div>
             </div>
           )}
-        </>
-      )}
+      </>
 
       <style>{`
         .status-badge {
@@ -599,6 +870,60 @@ export default function AdminPage() {
         }
         .ml-auto {
           margin-left: auto;
+        }
+        .form-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: var(--spacing-sm);
+        }
+        .match-list {
+          max-height: 500px;
+          overflow-y: auto;
+        }
+        .match-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: var(--spacing-md);
+          border: 1px solid var(--gray-200);
+          border-radius: var(--radius-md);
+          margin-bottom: var(--spacing-sm);
+          gap: var(--spacing-md);
+        }
+        .match-info {
+          flex: 1;
+        }
+        .match-name {
+          font-weight: 600;
+          margin-bottom: 4px;
+        }
+        .match-details {
+          margin-bottom: 8px;
+        }
+        .match-status-row {
+          margin-top: 4px;
+        }
+        .match-actions {
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-xs);
+          align-items: flex-end;
+        }
+        .form-input-sm {
+          padding: 6px 10px;
+          font-size: 0.8rem;
+        }
+        .status-badge.upcoming {
+          background: rgba(100, 116, 139, 0.1);
+          color: var(--gray-600);
+        }
+        .status-badge.live {
+          background: rgba(239, 68, 68, 0.1);
+          color: var(--danger);
+        }
+        .status-badge.completed {
+          background: rgba(22, 163, 74, 0.1);
+          color: var(--success);
         }
       `}</style>
     </div>

@@ -6,6 +6,7 @@ import { teamService } from '../services/teamService'
 import { useMatchSocket } from '../hooks/useSocket'
 import { useToast } from '../hooks/useToast'
 import Loading from '../components/common/Loading'
+import TeamLineup from '../components/fantasy/TeamLineup'
 
 export default function MatchDetailPage() {
   const { matchId } = useParams()
@@ -13,6 +14,7 @@ export default function MatchDetailPage() {
   const [fantasyTeam, setFantasyTeam] = useState(null)
   const [teamStatus, setTeamStatus] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showLineup, setShowLineup] = useState(false)
   const { success, error: showError } = useToast()
 
   // Socket handlers for live updates
@@ -131,12 +133,27 @@ export default function MatchDetailPage() {
 
             {/* Fantasy Team Status */}
             {fantasyTeam ? (
-              <div className="status-box success mb-md">
-                <span>Fantasy team created</span>
-                <Link to={`/match/${matchId}/team-builder`} className="btn btn-secondary btn-sm">
-                  Edit Team
-                </Link>
-              </div>
+              <>
+                <div className="status-box success mb-sm">
+                  <span>Fantasy team created ({fantasyTeam.players?.length || 0} players)</span>
+                </div>
+                <div className="team-actions mb-md">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => setShowLineup(true)}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <ellipse cx="12" cy="12" rx="3" ry="8"/>
+                      <line x1="2" y1="12" x2="22" y2="12"/>
+                    </svg>
+                    View My Team
+                  </button>
+                  <Link to={`/match/${matchId}/team-builder`} className="btn btn-secondary">
+                    Edit Team
+                  </Link>
+                </div>
+              </>
             ) : (
               <Link to={`/match/${matchId}/team-builder`} className="btn btn-primary btn-block mb-md">
                 Create Fantasy Team
@@ -179,6 +196,16 @@ export default function MatchDetailPage() {
         View Leaderboard
       </Link>
 
+      {/* Team Lineup Modal */}
+      {showLineup && fantasyTeam && (
+        <TeamLineup
+          players={fantasyTeam.players?.map(p => p.playerId) || []}
+          captain={fantasyTeam.players?.find(p => p.isCaptain)?.playerId?._id}
+          viceCaptain={fantasyTeam.players?.find(p => p.isViceCaptain)?.playerId?._id}
+          onClose={() => setShowLineup(false)}
+        />
+      )}
+
       <style>{`
         .status-box {
           display: flex;
@@ -207,6 +234,17 @@ export default function MatchDetailPage() {
         }
         .text-lg {
           font-size: 1.25rem;
+        }
+        .team-actions {
+          display: flex;
+          gap: var(--spacing-sm);
+        }
+        .team-actions .btn {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: var(--spacing-xs);
         }
       `}</style>
     </div>

@@ -113,13 +113,28 @@ const getMatchPlayers = async (req, res, next) => {
       return next(new ApiError(404, 'Match not found'));
     }
 
-    // Get players from both teams
+    // Get players from both teams (check both shortName and full name)
+    // Use case-insensitive regex to handle different capitalizations
+    const teamNames = [
+      match.team1.shortName,
+      match.team2.shortName,
+      match.team1.name,
+      match.team2.name
+    ].filter(Boolean);
+
+    // Create case-insensitive regex patterns for each team name
+    const teamRegexes = teamNames.map(name => new RegExp(`^${name}$`, 'i'));
+
     const players = await Player.find({
-      team: { $in: [match.team1.shortName, match.team2.shortName] },
+      $or: teamRegexes.map(regex => ({ team: regex })),
       isActive: true
     })
       .sort({ creditValue: -1, name: 1 })
       .lean();
+
+    // Debug logging (remove in production)
+    console.log('Match teams:', teamNames);
+    console.log('Players found:', players.length);
 
     res.json({
       success: true,

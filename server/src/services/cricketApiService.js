@@ -154,13 +154,15 @@ const getSeries = async () => {
     const response = await apiClient.get('/series');
 
     if (response.data.status !== 'success') {
-      throw new Error(response.data.info || 'Failed to fetch series');
+      const errorMsg = response.data.info || response.data.reason || JSON.stringify(response.data);
+      throw new Error(errorMsg);
     }
 
     return response.data.data || [];
   } catch (error) {
-    console.error('Error fetching series:', error.message);
-    throw error;
+    const errorMsg = error.response?.data?.reason || error.response?.data?.info || error.message || 'Unknown error';
+    console.error('Error fetching series:', errorMsg);
+    throw new Error(errorMsg);
   }
 };
 

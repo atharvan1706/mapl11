@@ -10,9 +10,10 @@ const { protect } = require('../middleware/auth');
 const router = express.Router();
 
 // Public leaderboards
+// IMPORTANT: Specific routes must come BEFORE parameterized routes
+router.get('/individual/overall', getOverallIndividualLeaderboard);
 router.get('/individual/:matchId', getIndividualMatchLeaderboard);
 router.get('/team/:matchId', getTeamMatchLeaderboard);
-router.get('/individual/overall', getOverallIndividualLeaderboard);
 
 // Protected routes
 router.get('/my-rank/:matchId', protect, getMyRank);

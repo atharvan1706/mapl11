@@ -79,7 +79,8 @@ export default function PredictionsPage() {
   if (loading) return <Loading />
   if (!match) return <div className="empty-state">Match not found</div>
 
-  const allPlayers = options?.allPlayers || []
+  // Fix: access nested data structure correctly
+  const allPlayers = options?.data?.allPlayers || options?.allPlayers || []
 
   return (
     <div className="predictions-page">

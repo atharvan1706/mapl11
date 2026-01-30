@@ -112,18 +112,59 @@ const getPredictionOptions = async (req, res, next) => {
       return next(new ApiError(404, 'Match not found'));
     }
 
-    // Get players from both teams
+    console.log('Match teams:', {
+      team1: { name: match.team1.name, shortName: match.team1.shortName },
+      team2: { name: match.team2.name, shortName: match.team2.shortName }
+    });
+
+    // Build search patterns for both teams (search by shortName AND full name)
+    const team1Patterns = [
+      new RegExp(`^${match.team1.shortName}$`, 'i'),
+      new RegExp(match.team1.name, 'i')
+    ];
+    const team2Patterns = [
+      new RegExp(`^${match.team2.shortName}$`, 'i'),
+      new RegExp(match.team2.name, 'i')
+    ];
+
+    // Get players from both teams (case-insensitive, match shortName or full name)
     const players = await Player.find({
-      team: { $in: [match.team1.shortName, match.team2.shortName] },
+      $or: [
+        { team: { $in: team1Patterns } },
+        { team: { $in: team2Patterns } }
+      ],
       isActive: true
     })
       .select('_id name shortName team role')
       .sort({ name: 1 })
       .lean();
 
-    // Group by team
-    const team1Players = players.filter(p => p.team === match.team1.shortName);
-    const team2Players = players.filter(p => p.team === match.team2.shortName);
+    console.log('Found players:', players.length, 'Teams:', [...new Set(players.map(p => p.team))]);
+
+    // If still no players, get ALL active players as fallback
+    let allPlayers = players;
+    if (players.length === 0) {
+      console.log('No players found for teams, returning all active players');
+      allPlayers = await Player.find({ isActive: true })
+        .select('_id name shortName team role')
+        .sort({ name: 1 })
+        .lean();
+    }
+
+    // Group by team (case-insensitive)
+    const isTeam1 = (p) => {
+      const team = p.team?.toLowerCase() || '';
+      return team === match.team1.shortName?.toLowerCase() ||
+             team.includes(match.team1.name?.toLowerCase());
+    };
+    const isTeam2 = (p) => {
+      const team = p.team?.toLowerCase() || '';
+      return team === match.team2.shortName?.toLowerCase() ||
+             team.includes(match.team2.name?.toLowerCase());
+    };
+
+    const team1Players = allPlayers.filter(isTeam1);
+    const team2Players = allPlayers.filter(isTeam2);
 
     res.json({
       success: true,
@@ -138,7 +179,7 @@ const getPredictionOptions = async (req, res, next) => {
           shortName: match.team2.shortName,
           players: team2Players
         },
-        allPlayers: players
+        allPlayers: allPlayers
       }
     });
   } catch (error) {
