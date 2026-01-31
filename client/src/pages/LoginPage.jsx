@@ -3,11 +3,40 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
 
+// MAPL11 Logo
+const Logo = () => (
+  <svg width="48" height="48" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="18" cy="18" r="16" fill="url(#ballGradient)" />
+    <path
+      d="M6 18c3-6 9-10 12-10s9 4 12 10c-3 6-9 10-12 10s-9-4-12-10z"
+      stroke="#c9372c"
+      strokeWidth="1.5"
+      fill="none"
+    />
+    <path
+      d="M8 14l1 1M10 12l1 1M12 10l1 1M14 9l1 0.5M22 9l-1 0.5M24 10l-1 1M26 12l-1 1M28 14l-1 1M8 22l1-1M10 24l1-1M12 26l1-1M14 27l1-0.5M22 27l-1-0.5M24 26l-1-1M26 24l-1-1M28 22l-1-1"
+      stroke="#c9372c"
+      strokeWidth="1"
+      strokeLinecap="round"
+    />
+    <circle cx="12" cy="12" r="3" fill="url(#shine)" opacity="0.4" />
+    <defs>
+      <linearGradient id="ballGradient" x1="4" y1="4" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#3fb950" />
+        <stop offset="1" stopColor="#238636" />
+      </linearGradient>
+      <radialGradient id="shine" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(12 12) scale(3)">
+        <stop stopColor="white" />
+        <stop offset="1" stopColor="white" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+  </svg>
+)
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
   const { login } = useAuth()
   const { error: showError } = useToast()
   const navigate = useNavigate()
@@ -27,126 +56,58 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="auth-page login-page">
-      {/* Background decoration */}
-      <div className="auth-bg-pattern"></div>
-
-      <div className="auth-container">
-        {/* Logo Section */}
-        <div className="auth-header">
-          <div className="auth-logo">
-            <svg viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-              <path d="M8 12a4 4 0 0 0 8 0" stroke="currentColor" strokeWidth="2"/>
-              <circle cx="12" cy="6" r="2" fill="currentColor"/>
-              <path d="M6 16l2-2M18 16l-2-2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
+    <div className="auth-page">
+      <div className="auth-header">
+        <div className="auth-logo">
+          <div className="auth-logo-icon">
+            <Logo />
           </div>
-          <h1 className="auth-title">Welcome Back</h1>
-          <p className="auth-subtitle">Sign in to continue to Cricket Fantasy</p>
+          <span className="auth-logo-text">MAPL11</span>
+        </div>
+        <h1 className="auth-title">Welcome Back</h1>
+        <p className="auth-subtitle">Sign in to continue playing</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="auth-form">
+        <div className="form-group">
+          <label className="form-label">Email</label>
+          <input
+            type="email"
+            className="form-input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+            autoComplete="email"
+          />
         </div>
 
-        {/* Login Form Card */}
-        <div className="auth-card">
-          <form onSubmit={handleSubmit} className="auth-form">
-            <div className="form-group">
-              <label className="form-label">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="label-icon">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
-                </svg>
-                Email Address
-              </label>
-              <div className="input-wrapper">
-                <input
-                  type="email"
-                  className="form-input"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                  autoComplete="email"
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="label-icon">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-                Password
-              </label>
-              <div className="input-wrapper password-wrapper">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  className="form-input"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  required
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary btn-block btn-lg"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <span className="btn-spinner"></span>
-                  Signing in...
-                </>
-              ) : (
-                <>
-                  Sign In
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="btn-icon">
-                    <line x1="5" y1="12" x2="19" y2="12"/>
-                    <polyline points="12 5 19 12 12 19"/>
-                  </svg>
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="auth-divider">
-            <span>or</span>
-          </div>
-
-          <div className="auth-footer">
-            <p>
-              Don't have an account?{' '}
-              <Link to="/register" className="auth-link">
-                Create Account
-              </Link>
-            </p>
-          </div>
+        <div className="form-group">
+          <label className="form-label">Password</label>
+          <input
+            type="password"
+            className="form-input"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter your password"
+            required
+            autoComplete="current-password"
+          />
         </div>
 
-        {/* Bottom text */}
-        <p className="auth-terms">
-          T20 World Cup Fantasy Cricket
+        <button
+          type="submit"
+          className="btn btn-primary btn-full btn-lg"
+          disabled={loading}
+        >
+          {loading ? 'Signing in...' : 'Sign In'}
+        </button>
+      </form>
+
+      <div className="auth-footer">
+        <p>
+          Don't have an account?{' '}
+          <Link to="/register">Create Account</Link>
         </p>
       </div>
     </div>

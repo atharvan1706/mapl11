@@ -79,14 +79,6 @@ export default function MatchCard({ match }) {
         )}
         <div className="text-xs text-gray">{match.venue}</div>
       </div>
-
-      <style>{`
-        .match-score {
-          font-weight: 700;
-          color: var(--primary);
-          margin-top: 4px;
-        }
-      `}</style>
     </Link>
   )
 }

@@ -5,6 +5,16 @@ import { matchService } from '../services/matchService'
 import Loading from '../components/common/Loading'
 import MatchCard from '../components/match/MatchCard'
 
+// Helper to get user initials
+const getInitials = (name) => {
+  if (!name) return 'U'
+  const parts = name.trim().split(' ')
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
+  return name.substring(0, 2).toUpperCase()
+}
+
 export default function HomePage() {
   const { user } = useAuth()
   const [liveMatches, setLiveMatches] = useState([])
@@ -51,30 +61,14 @@ export default function HomePage() {
           <p className="welcome-subtitle">Ready to play fantasy cricket?</p>
         </div>
         <div className="welcome-avatar">
-          {user?.avatar ? (
-            <img src={user.avatar} alt={user.displayName} />
-          ) : (
-            <div className="avatar-large">
-              {user?.displayName?.charAt(0)?.toUpperCase() || 'U'}
-            </div>
-          )}
+          <div className="avatar-large">
+            {getInitials(user?.displayName)}
+          </div>
         </div>
       </div>
 
-      {/* Quick Stats */}
+      {/* Quick Stats - Simplified */}
       <div className="quick-stats">
-        <div className="stat-card primary">
-          <div className="stat-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
-            </svg>
-          </div>
-          <div className="stat-details">
-            <span className="stat-value">{user?.virtualPoints?.toLocaleString() || '1,000'}</span>
-            <span className="stat-label">Total Points</span>
-          </div>
-        </div>
-
         <div className="stat-card">
           <div className="stat-icon secondary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -100,6 +94,18 @@ export default function HomePage() {
           <div className="stat-details">
             <span className="stat-value">#{user?.stats?.bestRank || '-'}</span>
             <span className="stat-label">Best Rank</span>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon secondary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+            </svg>
+          </div>
+          <div className="stat-details">
+            <span className="stat-value">{user?.stats?.totalWins || 0}</span>
+            <span className="stat-label">Wins</span>
           </div>
         </div>
       </div>

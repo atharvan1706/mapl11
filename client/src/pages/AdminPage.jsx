@@ -392,6 +392,12 @@ export default function AdminPage() {
               Add Player
             </button>
             <button
+              className={`tab ${activeTab === 'players' ? 'active' : ''}`}
+              onClick={() => setActiveTab('players')}
+            >
+              API Players
+            </button>
+            <button
               className={`tab ${activeTab === 'sync' ? 'active' : ''}`}
               onClick={() => setActiveTab('sync')}
             >

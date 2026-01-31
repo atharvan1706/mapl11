@@ -49,18 +49,16 @@ export default function BottomNav() {
       label: 'Ranks',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M8 21V11" strokeLinecap="round"/>
-          <path d="M12 21V7" strokeLinecap="round"/>
-          <path d="M16 21V13" strokeLinecap="round"/>
-          <circle cx="12" cy="4" r="2" fill="currentColor"/>
+          <rect x="6" y="11" width="4" height="10" rx="1"/>
+          <rect x="10" y="7" width="4" height="14" rx="1"/>
+          <rect x="14" y="14" width="4" height="7" rx="1"/>
         </svg>
       ),
       activeIcon: (
         <svg viewBox="0 0 24 24" fill="currentColor">
           <rect x="6" y="11" width="4" height="10" rx="1"/>
           <rect x="10" y="7" width="4" height="14" rx="1"/>
-          <rect x="14" y="13" width="4" height="8" rx="1"/>
-          <circle cx="12" cy="4" r="2"/>
+          <rect x="14" y="14" width="4" height="7" rx="1"/>
         </svg>
       )
     },

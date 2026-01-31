@@ -35,30 +35,32 @@ export default function MatchesPage() {
 
   return (
     <div className="matches-page">
-      <h1 className="mb-md">Matches</h1>
+      <div className="matches-page-header">
+        <h1 className="matches-page-title">Matches</h1>
+      </div>
 
       {/* Filter Tabs */}
-      <div className="tabs">
+      <div className="tab-nav">
         <button
-          className={`tab ${filter === 'all' ? 'active' : ''}`}
+          className={`tab-btn ${filter === 'all' ? 'active' : ''}`}
           onClick={() => setFilter('all')}
         >
           All
         </button>
         <button
-          className={`tab ${filter === 'upcoming' ? 'active' : ''}`}
+          className={`tab-btn ${filter === 'upcoming' ? 'active' : ''}`}
           onClick={() => setFilter('upcoming')}
         >
           Upcoming
         </button>
         <button
-          className={`tab ${filter === 'live' ? 'active' : ''}`}
+          className={`tab-btn ${filter === 'live' ? 'active' : ''}`}
           onClick={() => setFilter('live')}
         >
           Live
         </button>
         <button
-          className={`tab ${filter === 'completed' ? 'active' : ''}`}
+          className={`tab-btn ${filter === 'completed' ? 'active' : ''}`}
           onClick={() => setFilter('completed')}
         >
           Completed
@@ -74,8 +76,14 @@ export default function MatchesPage() {
           ))}
         </div>
       ) : (
-        <div className="empty-state">
+        <div className="empty-state-card">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M8 12a4 4 0 0 0 8 0"/>
+            <circle cx="12" cy="6" r="1.5"/>
+          </svg>
           <p>No {filter !== 'all' ? filter : ''} matches found</p>
+          <span>Check back later for new matches</span>
         </div>
       )}
     </div>
