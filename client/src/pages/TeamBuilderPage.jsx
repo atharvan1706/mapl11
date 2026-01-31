@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { matchService } from '../services/matchService'
 import { fantasyService } from '../services/fantasyService'
@@ -7,6 +7,15 @@ import Loading from '../components/common/Loading'
 
 const MAX_CREDITS = 100
 const TEAM_SIZE = 11
+
+// Team composition rules
+const ROLE_REQUIREMENTS = {
+  'Wicket-Keeper': { min: 1, max: 4 },
+  'Batsman': { min: 3, max: 6 },
+  'All-Rounder': { min: 1, max: 4 },
+  'Bowler': { min: 3, max: 6 }
+}
+const MAX_PLAYERS_PER_TEAM = 7
 
 export default function TeamBuilderPage() {
   const { matchId } = useParams()
@@ -23,7 +32,36 @@ export default function TeamBuilderPage() {
   const [filter, setFilter] = useState('all')
   const [step, setStep] = useState(1)
 
+  // Use refs to store toast functions to avoid dependency issues and prevent double calls
+  const showErrorRef = useRef(showError)
+  const successRef = useRef(success)
+  
+  // Keep refs updated
   useEffect(() => {
+    showErrorRef.current = showError
+    successRef.current = success
+  }, [showError, success])
+
+  // Track last error to prevent duplicates
+  const lastErrorRef = useRef({ message: '', time: 0 })
+
+  // Helper function to show error without duplicates
+  const showErrorOnce = (message) => {
+    const now = Date.now()
+    if (
+      lastErrorRef.current.message === message &&
+      now - lastErrorRef.current.time < 1000
+    ) {
+      return // Skip duplicate
+    }
+    lastErrorRef.current = { message, time: now }
+    showErrorRef.current(message)
+  }
+
+  useEffect(() => {
+    // Flag to prevent state updates after unmount (fixes StrictMode double-render)
+    let isActive = true
+
     const fetchData = async () => {
       try {
         const [matchRes, playersRes, teamRes] = await Promise.all([
@@ -31,6 +69,10 @@ export default function TeamBuilderPage() {
           matchService.getMatchPlayers(matchId),
           fantasyService.getFantasyTeam(matchId)
         ])
+
+        // Only update state if component is still mounted
+        if (!isActive) return
+
         setMatch(matchRes.data)
         setPlayers(playersRes.data || [])
 
@@ -43,12 +85,23 @@ export default function TeamBuilderPage() {
           if (vcPlayer) setViceCaptain(vcPlayer.playerId._id || vcPlayer.playerId)
         }
       } catch (error) {
-        showError('Error loading data')
+        // Only show error if component is still mounted
+        if (isActive) {
+          showErrorOnce('Error loading data')
+        }
       } finally {
-        setLoading(false)
+        if (isActive) {
+          setLoading(false)
+        }
       }
     }
+
     fetchData()
+
+    // Cleanup function - runs when component unmounts or matchId changes
+    return () => {
+      isActive = false
+    }
   }, [matchId])
 
   const filteredPlayers = useMemo(() => {
@@ -64,30 +117,116 @@ export default function TeamBuilderPage() {
 
   const remainingCredits = MAX_CREDITS - usedCredits
 
+  // Live validation
+  const validationStatus = useMemo(() => {
+    const selectedPlayerObjects = players.filter(p => selectedPlayers.includes(p._id))
+    
+    const roleCounts = {
+      'Wicket-Keeper': 0,
+      'Batsman': 0,
+      'All-Rounder': 0,
+      'Bowler': 0
+    }
+    
+    const teamCounts = {}
+    
+    selectedPlayerObjects.forEach(player => {
+      roleCounts[player.role] = (roleCounts[player.role] || 0) + 1
+      teamCounts[player.team] = (teamCounts[player.team] || 0) + 1
+    })
+    
+    const errors = []
+    const warnings = []
+    
+    Object.entries(ROLE_REQUIREMENTS).forEach(([role, limits]) => {
+      const count = roleCounts[role]
+      const remaining = TEAM_SIZE - selectedPlayers.length
+      
+      if (count > limits.max) {
+        errors.push(`Max ${limits.max} ${role}s allowed (have ${count})`)
+      } else if (count === limits.max && remaining > 0) {
+        warnings.push(`${role}: Max reached (${count}/${limits.max})`)
+      }
+      
+      const needed = limits.min - count
+      if (needed > remaining && selectedPlayers.length > 0) {
+        errors.push(`Need ${needed} more ${role}(s), only ${remaining} slots left`)
+      }
+    })
+    
+    Object.entries(teamCounts).forEach(([team, count]) => {
+      if (count > MAX_PLAYERS_PER_TEAM) {
+        errors.push(`Max ${MAX_PLAYERS_PER_TEAM} from ${team} (have ${count})`)
+      } else if (count === MAX_PLAYERS_PER_TEAM) {
+        warnings.push(`${team}: Max reached (${count}/${MAX_PLAYERS_PER_TEAM})`)
+      }
+    })
+    
+    let minimumsMet = true
+    if (selectedPlayers.length === TEAM_SIZE) {
+      Object.entries(ROLE_REQUIREMENTS).forEach(([role, limits]) => {
+        if (roleCounts[role] < limits.min) {
+          errors.push(`Need at least ${limits.min} ${role}(s) (have ${roleCounts[role]})`)
+          minimumsMet = false
+        }
+      })
+    }
+    
+    const canContinue = selectedPlayers.length === TEAM_SIZE && errors.length === 0 && minimumsMet
+    
+    return { roleCounts, teamCounts, errors, warnings, canContinue }
+  }, [players, selectedPlayers])
+
   const togglePlayer = (playerId) => {
+    const player = players.find(p => p._id === playerId)
+    if (!player) return
+
     setSelectedPlayers(prev => {
       if (prev.includes(playerId)) {
         if (captain === playerId) setCaptain(null)
         if (viceCaptain === playerId) setViceCaptain(null)
         return prev.filter(id => id !== playerId)
-      } else {
-        if (prev.length >= TEAM_SIZE) {
-          showError(`Maximum ${TEAM_SIZE} players allowed`)
-          return prev
-        }
-        const player = players.find(p => p._id === playerId)
-        if (player.creditValue > remainingCredits) {
-          showError('Not enough credits')
-          return prev
-        }
-        return [...prev, playerId]
       }
+      
+      if (prev.length >= TEAM_SIZE) {
+        showErrorOnce(`Maximum ${TEAM_SIZE} players allowed`)
+        return prev
+      }
+      
+      if (player.creditValue > remainingCredits) {
+        showErrorOnce('Not enough credits')
+        return prev
+      }
+      
+      const currentRoleCount = players
+        .filter(p => prev.includes(p._id) && p.role === player.role)
+        .length
+      
+      if (currentRoleCount >= ROLE_REQUIREMENTS[player.role].max) {
+        showErrorOnce(`Max ${ROLE_REQUIREMENTS[player.role].max} ${player.role}s allowed`)
+        return prev
+      }
+      
+      const currentTeamCount = players
+        .filter(p => prev.includes(p._id) && p.team === player.team)
+        .length
+      
+      if (currentTeamCount >= MAX_PLAYERS_PER_TEAM) {
+        showErrorOnce(`Max ${MAX_PLAYERS_PER_TEAM} players from ${player.team}`)
+        return prev
+      }
+      
+      return [...prev, playerId]
     })
   }
 
   const handleContinue = () => {
-    if (selectedPlayers.length !== TEAM_SIZE) {
-      showError(`Please select ${TEAM_SIZE} players`)
+    if (!validationStatus.canContinue) {
+      if (validationStatus.errors.length > 0) {
+        showErrorOnce(validationStatus.errors[0])
+      } else {
+        showErrorOnce(`Please select ${TEAM_SIZE} players`)
+      }
       return
     }
     setStep(2)
@@ -95,7 +234,7 @@ export default function TeamBuilderPage() {
 
   const handleSave = async () => {
     if (!captain || !viceCaptain) {
-      showError('Please select captain and vice-captain')
+      showErrorOnce('Please select captain and vice-captain')
       return
     }
 
@@ -106,10 +245,10 @@ export default function TeamBuilderPage() {
         captainId: captain,
         viceCaptainId: viceCaptain
       })
-      success('Team saved successfully!')
+      successRef.current('Team saved successfully!')
       navigate(`/match/${matchId}`)
     } catch (err) {
-      showError(err.message)
+      showErrorOnce(err.message)
     } finally {
       setSaving(false)
     }
@@ -134,6 +273,50 @@ export default function TeamBuilderPage() {
         </div>
       </div>
 
+      {/* Live Validation Status */}
+      {selectedPlayers.length > 0 && (
+        <div className="validation-status">
+          <div className="role-counts">
+            {Object.entries(ROLE_REQUIREMENTS).map(([role, limits]) => {
+              const count = validationStatus.roleCounts[role]
+              const isMin = count < limits.min
+              const isMax = count >= limits.max
+              
+              return (
+                <div 
+                  key={role} 
+                  className={`role-count ${isMin ? 'need-more' : ''} ${isMax ? 'maxed' : ''}`}
+                >
+                  <span className="role-abbr">
+                    {role === 'Wicket-Keeper' ? 'WK' : 
+                     role === 'All-Rounder' ? 'AR' : 
+                     role.substring(0, 3).toUpperCase()}
+                  </span>
+                  <span className="role-num">{count}</span>
+                  <span className="role-range">({limits.min}-{limits.max})</span>
+                </div>
+              )
+            })}
+          </div>
+
+          {validationStatus.errors.length > 0 && (
+            <div className="validation-errors">
+              {validationStatus.errors.map((err, i) => (
+                <div key={i} className="validation-error">⚠️ {err}</div>
+              ))}
+            </div>
+          )}
+
+          {validationStatus.warnings.length > 0 && validationStatus.errors.length === 0 && (
+            <div className="validation-warnings">
+              {validationStatus.warnings.map((warn, i) => (
+                <div key={i} className="validation-warning">ℹ️ {warn}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {step === 1 ? (
         <>
           {/* Role Filter */}
@@ -144,7 +327,7 @@ export default function TeamBuilderPage() {
                 className={`tab ${filter === role ? 'active' : ''}`}
                 onClick={() => setFilter(role)}
               >
-                {role === 'all' ? 'All' : role === 'Wicket-Keeper' ? 'Wicket' : role.split('-')[0]}
+                {role === 'all' ? 'All' : role === 'Wicket-Keeper' ? 'WK' : role.split('-')[0]}
               </button>
             ))}
           </div>
@@ -192,7 +375,7 @@ export default function TeamBuilderPage() {
           <button
             className="btn btn-primary btn-full"
             onClick={handleContinue}
-            disabled={selectedPlayers.length !== TEAM_SIZE}
+            disabled={!validationStatus.canContinue}
           >
             Continue ({selectedPlayers.length}/{TEAM_SIZE})
           </button>
@@ -265,6 +448,73 @@ export default function TeamBuilderPage() {
       )}
 
       <style>{`
+        .validation-status {
+          background: var(--bg-tertiary);
+          border-radius: var(--radius-md);
+          padding: var(--spacing-sm);
+          margin-bottom: var(--spacing-md);
+        }
+        .role-counts {
+          display: flex;
+          justify-content: space-between;
+          gap: var(--spacing-xs);
+        }
+        .role-count {
+          flex: 1;
+          text-align: center;
+          padding: var(--spacing-xs);
+          background: var(--bg-card);
+          border-radius: var(--radius-sm);
+          border: 2px solid transparent;
+        }
+        .role-count.need-more {
+          border-color: var(--warning);
+          background: rgba(245, 158, 11, 0.1);
+        }
+        .role-count.maxed {
+          border-color: var(--success);
+          background: rgba(46, 160, 67, 0.1);
+        }
+        .role-abbr {
+          display: block;
+          font-size: 0.65rem;
+          font-weight: 600;
+          color: var(--text-muted);
+        }
+        .role-num {
+          display: block;
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+        .role-range {
+          font-size: 0.6rem;
+          color: var(--text-muted);
+        }
+        .validation-errors {
+          margin-top: var(--spacing-sm);
+        }
+        .validation-error {
+          padding: var(--spacing-xs) var(--spacing-sm);
+          background: rgba(248, 81, 73, 0.15);
+          color: var(--error);
+          font-size: 0.75rem;
+          font-weight: 500;
+          border-radius: var(--radius-sm);
+          margin-top: var(--spacing-xs);
+        }
+        .validation-warnings {
+          margin-top: var(--spacing-sm);
+        }
+        .validation-warning {
+          padding: var(--spacing-xs) var(--spacing-sm);
+          background: rgba(245, 158, 11, 0.15);
+          color: var(--warning);
+          font-size: 0.75rem;
+          font-weight: 500;
+          border-radius: var(--radius-sm);
+          margin-top: var(--spacing-xs);
+        }
         .player-card.disabled {
           opacity: 0.5;
           cursor: not-allowed;
