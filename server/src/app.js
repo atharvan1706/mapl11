@@ -8,6 +8,10 @@ const routes = require('./routes');
 
 const app = express();
 
+// Trust proxy - required for running behind reverse proxy (Render, Heroku, etc.)
+// This is needed for rate limiting and getting correct client IP
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 
