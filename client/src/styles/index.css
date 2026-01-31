@@ -2277,3 +2277,234 @@ textarea.form-input {
   min-height: 100px;
   resize: vertical;
 }
+
+/* ============================================
+   TEAM BUILDER PAGE
+   ============================================ */
+.credit-counter {
+  display: flex;
+  justify-content: space-around;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.credit-counter > div {
+  text-align: center;
+}
+
+.credit-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.credit-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Tab Filters (role buttons, etc) */
+.tabs {
+  display: flex;
+  gap: var(--spacing-sm);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition-fast);
+}
+
+.tab:hover {
+  border-color: var(--primary);
+  color: var(--text-primary);
+}
+
+.tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+/* Players List */
+.players-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+/* ============================================
+   MATCH DETAIL PAGE
+   ============================================ */
+.match-detail-page .match-teams {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) 0;
+}
+
+.match-detail-page .match-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex: 1;
+}
+
+.match-detail-page .match-team-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+}
+
+.match-detail-page .match-team-name {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.match-detail-page .match-vs {
+  padding: 0 var(--spacing-md);
+}
+
+.match-detail-page .match-status {
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.match-detail-page .match-status.live {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--live);
+}
+
+.match-detail-page .match-status.upcoming {
+  background: rgba(46, 160, 67, 0.15);
+  color: var(--success);
+}
+
+.match-detail-page .match-status.completed {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.match-detail-page .match-score {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--primary-light);
+  margin-top: var(--spacing-xs);
+}
+
+.match-detail-page h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.match-detail-page h4 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Status boxes */
+.status-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+}
+
+.status-box.success {
+  background: rgba(46, 160, 67, 0.1);
+  border: 1px solid rgba(46, 160, 67, 0.3);
+  color: var(--success);
+}
+
+.status-box.warning {
+  background: rgba(210, 153, 34, 0.1);
+  border: 1px solid rgba(210, 153, 34, 0.3);
+  color: var(--warning);
+}
+
+/* Live score box */
+.live-score {
+  padding: var(--spacing-md);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-primary);
+}
+
+.text-lg {
+  font-size: 1.25rem;
+}
+
+/* Team actions buttons */
+.team-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.team-actions .btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+}
+
+/* Button success variant */
+.btn-success {
+  background: var(--success);
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: var(--success-light);
+}
+
+/* Flex utilities */
+.flex-1 {
+  flex: 1;
+}
+
+.text-right {
+  text-align: right;
+}

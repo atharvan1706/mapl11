@@ -21,7 +21,7 @@ export default function TeamBuilderPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState('all')
-  const [step, setStep] = useState(1) // 1: select players, 2: select captain/vc
+  const [step, setStep] = useState(1)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -34,7 +34,6 @@ export default function TeamBuilderPage() {
         setMatch(matchRes.data)
         setPlayers(playersRes.data || [])
 
-        // Load existing team if any
         if (teamRes.data) {
           const existingPlayers = teamRes.data.players.map(p => p.playerId._id || p.playerId)
           setSelectedPlayers(existingPlayers)
@@ -68,12 +67,10 @@ export default function TeamBuilderPage() {
   const togglePlayer = (playerId) => {
     setSelectedPlayers(prev => {
       if (prev.includes(playerId)) {
-        // Deselect
         if (captain === playerId) setCaptain(null)
         if (viceCaptain === playerId) setViceCaptain(null)
         return prev.filter(id => id !== playerId)
       } else {
-        // Select
         if (prev.length >= TEAM_SIZE) {
           showError(`Maximum ${TEAM_SIZE} players allowed`)
           return prev
@@ -119,7 +116,7 @@ export default function TeamBuilderPage() {
   }
 
   if (loading) return <Loading />
-  if (!match) return <div className="empty-state">Match not found</div>
+  if (!match) return <div className="empty-state-card"><p>Match not found</p></div>
 
   const selectedPlayerObjects = players.filter(p => selectedPlayers.includes(p._id))
 
@@ -147,7 +144,7 @@ export default function TeamBuilderPage() {
                 className={`tab ${filter === role ? 'active' : ''}`}
                 onClick={() => setFilter(role)}
               >
-                {role === 'all' ? 'All' : role.split('-')[0]}
+                {role === 'all' ? 'All' : role === 'Wicket-Keeper' ? 'Wicket' : role.split('-')[0]}
               </button>
             ))}
           </div>
@@ -170,34 +167,30 @@ export default function TeamBuilderPage() {
                         src={player.image}
                         alt={player.name}
                         onError={(e) => {
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'flex';
+                          e.target.style.display = 'none'
+                          e.target.nextSibling.style.display = 'flex'
                         }}
                       />
                     ) : null}
-                    <span className="avatar-fallback" style={{ display: player.image ? 'none' : 'flex' }}>
+                    <span style={{ display: player.image ? 'none' : 'flex' }}>
                       {player.name.charAt(0)}
                     </span>
                   </div>
                   <div className="player-info">
                     <div className="player-name">{player.name}</div>
-                    <div className="player-role">{player.team} - {player.role}</div>
+                    <div className="player-meta">
+                      <span className="player-team">{player.team}</span>
+                      <span className="player-role">{player.role}</span>
+                    </div>
                   </div>
                   <div className="player-credits">{player.creditValue}</div>
-                  {isSelected && (
-                    <div className="player-check">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--success)">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                      </svg>
-                    </div>
-                  )}
                 </div>
               )
             })}
           </div>
 
           <button
-            className="btn btn-primary btn-block"
+            className="btn btn-primary btn-full"
             onClick={handleContinue}
             disabled={selectedPlayers.length !== TEAM_SIZE}
           >
@@ -207,60 +200,61 @@ export default function TeamBuilderPage() {
       ) : (
         <>
           {/* Captain Selection */}
-          <div className="card mb-md">
+          <div className="card mb-3">
             <div className="card-header">Select Captain & Vice-Captain</div>
             <div className="card-body">
-              <p className="text-sm text-gray mb-md">
+              <p className="text-sm text-muted mb-3">
                 Captain gets 2x points, Vice-captain gets 1.5x points
               </p>
 
-              {selectedPlayerObjects.map(player => (
-                <div key={player._id} className="captain-row">
-                  <div className="captain-player">
-                    <div className="player-avatar small">
-                      {player.image ? (
-                        <img src={player.image} alt={player.name} />
-                      ) : (
-                        <span className="avatar-fallback">{player.name.charAt(0)}</span>
-                      )}
+              <div className="captain-selection-list">
+                {selectedPlayerObjects.map(player => (
+                  <div key={player._id} className="captain-row">
+                    <div className="captain-player">
+                      <div className="captain-avatar">
+                        {player.image ? (
+                          <img src={player.image} alt={player.name} />
+                        ) : (
+                          <span>{player.name.charAt(0)}</span>
+                        )}
+                      </div>
+                      <div className="captain-info">
+                        <div className="captain-name">{player.name}</div>
+                        <div className="captain-role">{player.role}</div>
+                      </div>
                     </div>
-                    <div className="player-info">
-                      <div className="player-name">{player.name}</div>
-                      <div className="player-role">{player.role}</div>
+                    <div className="captain-buttons">
+                      <button
+                        className={`captain-btn ${captain === player._id ? 'active captain' : ''}`}
+                        onClick={() => {
+                          if (viceCaptain === player._id) setViceCaptain(null)
+                          setCaptain(captain === player._id ? null : player._id)
+                        }}
+                      >
+                        C
+                      </button>
+                      <button
+                        className={`captain-btn ${viceCaptain === player._id ? 'active vice' : ''}`}
+                        onClick={() => {
+                          if (captain === player._id) setCaptain(null)
+                          setViceCaptain(viceCaptain === player._id ? null : player._id)
+                        }}
+                      >
+                        VC
+                      </button>
                     </div>
                   </div>
-                  <div className="captain-buttons">
-                    <button
-                      className={`captain-btn ${captain === player._id ? 'active c' : ''}`}
-                      onClick={() => {
-                        if (viceCaptain === player._id) setViceCaptain(null)
-                        setCaptain(captain === player._id ? null : player._id)
-                      }}
-                    >
-                      C
-                    </button>
-                    <button
-                      className={`captain-btn ${viceCaptain === player._id ? 'active vc' : ''}`}
-                      onClick={() => {
-                        if (captain === player._id) setCaptain(null)
-                        setViceCaptain(viceCaptain === player._id ? null : player._id)
-                      }}
-                    >
-                      VC
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="flex gap-sm">
+          <div className="flex gap-2">
             <button className="btn btn-secondary" onClick={() => setStep(1)}>
               Back
             </button>
             <button
-              className="btn btn-primary"
-              style={{ flex: 1 }}
+              className="btn btn-primary flex-1"
               onClick={handleSave}
               disabled={saving || !captain || !viceCaptain}
             >
@@ -275,76 +269,99 @@ export default function TeamBuilderPage() {
           opacity: 0.5;
           cursor: not-allowed;
         }
-        .player-avatar {
-          position: relative;
-          overflow: hidden;
-        }
         .player-avatar img {
           width: 100%;
           height: 100%;
           object-fit: cover;
           border-radius: inherit;
         }
-        .player-avatar .avatar-fallback {
+        .player-avatar span {
           width: 100%;
           height: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: 700;
-          font-size: 1rem;
-          color: white;
+          color: var(--text-primary);
         }
-        .player-avatar.small {
-          width: 36px;
-          height: 36px;
-          border-radius: var(--radius-md);
-          background: var(--primary-gradient);
-          flex-shrink: 0;
-        }
-        .player-avatar.small .avatar-fallback {
-          font-size: 0.85rem;
-        }
-        .player-check {
-          margin-left: var(--spacing-sm);
+        .captain-selection-list {
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-xs);
         }
         .captain-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: var(--spacing-sm) 0;
-          border-bottom: 1px solid var(--gray-100);
-        }
-        .captain-row:last-child {
-          border-bottom: none;
+          padding: var(--spacing-sm);
+          background: var(--bg-tertiary);
+          border-radius: var(--radius-md);
         }
         .captain-player {
           display: flex;
           align-items: center;
           gap: var(--spacing-sm);
         }
+        .captain-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: var(--radius-md);
+          background: var(--bg-card);
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .captain-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .captain-avatar span {
+          font-weight: 700;
+          font-size: 0.85rem;
+          color: var(--text-primary);
+        }
+        .captain-info {
+          min-width: 0;
+        }
+        .captain-name {
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+        .captain-role {
+          font-size: 0.65rem;
+          color: var(--text-muted);
+        }
         .captain-buttons {
           display: flex;
           gap: var(--spacing-sm);
         }
         .captain-btn {
-          width: 36px;
-          height: 36px;
-          border: 2px solid var(--gray-300);
+          width: 32px;
+          height: 32px;
+          border: 2px solid var(--border-primary);
           border-radius: var(--radius-full);
-          background: transparent;
+          background: var(--bg-card);
+          color: var(--text-muted);
           font-weight: 700;
+          font-size: 0.7rem;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: var(--transition-fast);
         }
-        .captain-btn.active.c {
-          background: var(--primary);
+        .captain-btn:hover {
           border-color: var(--primary);
+          color: var(--text-primary);
+        }
+        .captain-btn.active.captain {
+          background: var(--accent);
+          border-color: var(--accent);
           color: white;
         }
-        .captain-btn.active.vc {
-          background: var(--secondary);
-          border-color: var(--secondary);
+        .captain-btn.active.vice {
+          background: var(--primary);
+          border-color: var(--primary);
           color: white;
         }
       `}</style>

@@ -17,7 +17,6 @@ export default function MatchDetailPage() {
   const [showLineup, setShowLineup] = useState(false)
   const { success, error: showError } = useToast()
 
-  // Socket handlers for live updates
   useMatchSocket(matchId, {
     onScoreUpdate: (data) => {
       if (data.matchId === matchId) {
@@ -73,7 +72,7 @@ export default function MatchDetailPage() {
   }
 
   if (loading) return <Loading />
-  if (!match) return <div className="empty-state">Match not found</div>
+  if (!match) return <div className="empty-state-card"><p>Match not found</p></div>
 
   const isUpcoming = match.status === 'upcoming'
   const isLive = match.status === 'live'
@@ -82,106 +81,117 @@ export default function MatchDetailPage() {
   return (
     <div className="match-detail-page">
       {/* Match Header */}
-      <div className="card mb-md">
-        <div className="card-body">
-          <div className="match-teams">
-            <div className="match-team">
-              <div className="match-team-logo">{match.team1.shortName}</div>
-              <div className="match-team-name">{match.team1.name}</div>
-              {match.result?.team1Score && (
-                <div className="match-score font-bold">{match.result.team1Score}</div>
-              )}
-            </div>
-
-            <div className="match-vs">
-              <span className={`match-status ${match.status}`}>
-                {match.status.toUpperCase()}
-              </span>
-            </div>
-
-            <div className="match-team">
-              <div className="match-team-logo">{match.team2.shortName}</div>
-              <div className="match-team-name">{match.team2.name}</div>
-              {match.result?.team2Score && (
-                <div className="match-score font-bold">{match.result.team2Score}</div>
-              )}
-            </div>
+      <div className="match-header-card">
+        <div className="match-header-teams">
+          <div className="match-header-team">
+            <div className="team-logo-large">{match.team1.shortName}</div>
+            <span className="team-name-large">{match.team1.name}</span>
+            {match.result?.team1Score && (
+              <span className="match-score">{match.result.team1Score}</span>
+            )}
           </div>
 
-          {isLive && match.liveData && (
-            <div className="live-score text-center mt-md">
-              <div className="text-danger font-bold text-lg">
-                {match.liveData.currentScore}
-              </div>
-              <div className="text-gray text-sm">
-                {match.liveData.currentOver} overs
-              </div>
-            </div>
-          )}
-
-          <div className="match-info mt-md">
-            <div className="text-gray text-sm">{match.venue}</div>
+          <div className="match-header-vs">
+            <span className={`match-status-badge ${match.status}`}>
+              {match.status.toUpperCase()}
+            </span>
           </div>
+
+          <div className="match-header-team">
+            <div className="team-logo-large">{match.team2.shortName}</div>
+            <span className="team-name-large">{match.team2.name}</span>
+            {match.result?.team2Score && (
+              <span className="match-score">{match.result.team2Score}</span>
+            )}
+          </div>
+        </div>
+
+        {isLive && match.liveData && (
+          <div className="live-score-box">
+            <div className="live-score-value">
+              {match.liveData.currentScore}
+            </div>
+            <div className="live-score-overs">
+              {match.liveData.currentOver} overs
+            </div>
+          </div>
+        )}
+
+        <div className="match-meta">
+          <span className="match-venue">{match.venue}</span>
         </div>
       </div>
 
       {/* Actions */}
       {canCreateTeam && (
-        <div className="card mb-md">
+        <div className="card">
           <div className="card-body">
-            <h3 className="mb-md">Create Your Team</h3>
+            <h3 className="section-title mb-3">Create Your Team</h3>
+
+            {/* Tab-like buttons */}
+            <div className="action-tabs">
+              {fantasyTeam ? (
+                <Link to={`/match/${matchId}/team-builder`} className="action-tab">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  Edit Fantasy Team
+                </Link>
+              ) : (
+                <Link to={`/match/${matchId}/team-builder`} className="action-tab active">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  Create Fantasy Team
+                </Link>
+              )}
+
+              <Link to={`/match/${matchId}/predictions`} className="action-tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                Make Predictions
+              </Link>
+            </div>
 
             {/* Fantasy Team Status */}
-            {fantasyTeam ? (
-              <>
-                <div className="status-box success mb-sm">
-                  <span>Fantasy team created ({fantasyTeam.players?.length || 0} players)</span>
+            {fantasyTeam && (
+              <div className="team-status-card">
+                <div className="team-status-info">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                  </svg>
+                  <span>Fantasy team ready ({fantasyTeam.players?.length || 0} players)</span>
                 </div>
-                <div className="team-actions mb-md">
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => setShowLineup(true)}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10"/>
-                      <ellipse cx="12" cy="12" rx="3" ry="8"/>
-                      <line x1="2" y1="12" x2="22" y2="12"/>
-                    </svg>
-                    View My Team
-                  </button>
-                  <Link to={`/match/${matchId}/team-builder`} className="btn btn-secondary">
-                    Edit Team
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <Link to={`/match/${matchId}/team-builder`} className="btn btn-primary btn-block mb-md">
-                Create Fantasy Team
-              </Link>
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => setShowLineup(true)}
+                >
+                  View
+                </button>
+              </div>
             )}
-
-            {/* Predictions */}
-            <Link to={`/match/${matchId}/predictions`} className="btn btn-secondary btn-block mb-md">
-              Make Predictions
-            </Link>
 
             {/* Auto-Match Queue */}
             {fantasyTeam && (
-              <div className="mt-md">
-                <h4 className="mb-sm">Team Competition</h4>
+              <div className="team-competition-section">
+                <h4 className="subsection-title">Team Competition</h4>
                 {teamStatus?.status === 'matched' ? (
                   <div className="status-box success">
                     <span>Matched: {teamStatus.team?.teamName}</span>
-                    <Link to={`/match/${matchId}/my-team`} className="btn btn-primary btn-sm">
+                    <Link to={`/match/${matchId}/my-team`} className="btn btn-sm btn-primary">
                       View Team
                     </Link>
                   </div>
                 ) : teamStatus?.status === 'waiting' ? (
                   <div className="status-box warning">
-                    <span>In queue ({teamStatus.position} / waiting for {teamStatus.needMore} more)</span>
+                    <span>In queue (waiting for {teamStatus.needMore} more)</span>
                   </div>
                 ) : (
-                  <button onClick={handleJoinQueue} className="btn btn-success btn-block">
+                  <button onClick={handleJoinQueue} className="btn btn-success btn-full">
                     Join Team Competition
                   </button>
                 )}
@@ -192,7 +202,7 @@ export default function MatchDetailPage() {
       )}
 
       {/* Leaderboard Link */}
-      <Link to={`/leaderboard/${matchId}`} className="btn btn-secondary btn-block">
+      <Link to={`/leaderboard/${matchId}`} className="btn btn-secondary btn-full mt-3">
         View Leaderboard
       </Link>
 
@@ -207,44 +217,112 @@ export default function MatchDetailPage() {
       )}
 
       <style>{`
-        .status-box {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: var(--spacing-sm) var(--spacing-md);
-          border-radius: var(--radius-md);
-          font-size: 0.875rem;
+        .match-status-badge {
+          padding: 4px 12px;
+          border-radius: var(--radius-full);
+          font-size: 0.65rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
         }
-        .status-box.success {
-          background: rgba(22, 163, 74, 0.1);
+        .match-status-badge.live {
+          background: rgba(248, 81, 73, 0.15);
+          color: var(--live);
+        }
+        .match-status-badge.upcoming {
+          background: rgba(46, 160, 67, 0.15);
           color: var(--success);
         }
-        .status-box.warning {
-          background: rgba(217, 119, 6, 0.1);
-          color: var(--warning);
+        .match-status-badge.completed {
+          background: var(--bg-tertiary);
+          color: var(--text-muted);
         }
-        .btn-sm {
-          padding: var(--spacing-xs) var(--spacing-sm);
-          font-size: 0.75rem;
-        }
-        .live-score {
+        .live-score-box {
+          margin-top: var(--spacing-md);
           padding: var(--spacing-md);
-          background: var(--gray-50);
+          background: var(--bg-tertiary);
           border-radius: var(--radius-md);
+          text-align: center;
         }
-        .text-lg {
+        .live-score-value {
           font-size: 1.25rem;
+          font-weight: 700;
+          color: var(--live);
         }
-        .team-actions {
+        .live-score-overs {
+          font-size: 0.75rem;
+          color: var(--text-muted);
+        }
+        .section-title {
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+        .subsection-title {
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: var(--text-secondary);
+          margin-bottom: var(--spacing-sm);
+        }
+        .action-tabs {
           display: flex;
           gap: var(--spacing-sm);
+          margin-bottom: var(--spacing-md);
         }
-        .team-actions .btn {
+        .action-tab {
           flex: 1;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: var(--spacing-xs);
+          padding: var(--spacing-md);
+          background: var(--bg-tertiary);
+          border: 1px solid var(--border-primary);
+          border-radius: var(--radius-md);
+          color: var(--text-secondary);
+          font-size: 0.75rem;
+          font-weight: 600;
+          text-decoration: none;
+          transition: var(--transition-fast);
+        }
+        .action-tab svg {
+          width: 18px;
+          height: 18px;
+        }
+        .action-tab:hover {
+          border-color: var(--primary);
+          color: var(--text-primary);
+        }
+        .action-tab.active {
+          background: var(--primary);
+          border-color: var(--primary);
+          color: white;
+        }
+        .team-status-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: var(--spacing-sm) var(--spacing-md);
+          background: rgba(46, 160, 67, 0.1);
+          border: 1px solid rgba(46, 160, 67, 0.3);
+          border-radius: var(--radius-md);
+          margin-bottom: var(--spacing-md);
+        }
+        .team-status-info {
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-sm);
+          color: var(--success);
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+        .team-status-info svg {
+          width: 18px;
+          height: 18px;
+        }
+        .team-competition-section {
+          padding-top: var(--spacing-md);
+          border-top: 1px solid var(--border-primary);
         }
       `}</style>
     </div>
