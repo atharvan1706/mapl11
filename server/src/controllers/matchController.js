@@ -114,16 +114,18 @@ const getMatchPlayers = async (req, res, next) => {
     }
 
     // Get players from both teams (check both shortName and full name)
-    // Use case-insensitive regex to handle different capitalizations
+    // Trim whitespace and use case-insensitive regex
     const teamNames = [
-      match.team1.shortName,
-      match.team2.shortName,
-      match.team1.name,
-      match.team2.name
+      match.team1.shortName?.trim(),
+      match.team2.shortName?.trim(),
+      match.team1.name?.trim(),
+      match.team2.name?.trim()
     ].filter(Boolean);
 
     // Create case-insensitive regex patterns for each team name
-    const teamRegexes = teamNames.map(name => new RegExp(`^${name}$`, 'i'));
+    // Escape special regex characters and trim
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const teamRegexes = teamNames.map(name => new RegExp(`^${escapeRegex(name)}$`, 'i'));
 
     const players = await Player.find({
       $or: teamRegexes.map(regex => ({ team: regex })),
@@ -132,8 +134,8 @@ const getMatchPlayers = async (req, res, next) => {
       .sort({ creditValue: -1, name: 1 })
       .lean();
 
-    // Debug logging (remove in production)
-    console.log('Match teams:', teamNames);
+    // Debug logging
+    console.log('Match teams (trimmed):', teamNames);
     console.log('Players found:', players.length);
 
     res.json({

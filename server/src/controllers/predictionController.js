@@ -112,19 +112,28 @@ const getPredictionOptions = async (req, res, next) => {
       return next(new ApiError(404, 'Match not found'));
     }
 
+    // Trim team names to handle whitespace issues
+    const team1ShortName = match.team1.shortName?.trim() || '';
+    const team2ShortName = match.team2.shortName?.trim() || '';
+    const team1Name = match.team1.name?.trim() || '';
+    const team2Name = match.team2.name?.trim() || '';
+
     console.log('Match teams:', {
-      team1: { name: match.team1.name, shortName: match.team1.shortName },
-      team2: { name: match.team2.name, shortName: match.team2.shortName }
+      team1: { name: team1Name, shortName: team1ShortName },
+      team2: { name: team2Name, shortName: team2ShortName }
     });
+
+    // Escape special regex characters
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     // Build search patterns for both teams (search by shortName AND full name)
     const team1Patterns = [
-      new RegExp(`^${match.team1.shortName}$`, 'i'),
-      new RegExp(match.team1.name, 'i')
+      new RegExp(`^${escapeRegex(team1ShortName)}$`, 'i'),
+      new RegExp(escapeRegex(team1Name), 'i')
     ];
     const team2Patterns = [
-      new RegExp(`^${match.team2.shortName}$`, 'i'),
-      new RegExp(match.team2.name, 'i')
+      new RegExp(`^${escapeRegex(team2ShortName)}$`, 'i'),
+      new RegExp(escapeRegex(team2Name), 'i')
     ];
 
     // Get players from both teams (case-insensitive, match shortName or full name)
@@ -151,16 +160,16 @@ const getPredictionOptions = async (req, res, next) => {
         .lean();
     }
 
-    // Group by team (case-insensitive)
+    // Group by team (case-insensitive, with trimming)
     const isTeam1 = (p) => {
-      const team = p.team?.toLowerCase() || '';
-      return team === match.team1.shortName?.toLowerCase() ||
-             team.includes(match.team1.name?.toLowerCase());
+      const team = p.team?.trim().toLowerCase() || '';
+      return team === team1ShortName.toLowerCase() ||
+             team.includes(team1Name.toLowerCase());
     };
     const isTeam2 = (p) => {
-      const team = p.team?.toLowerCase() || '';
-      return team === match.team2.shortName?.toLowerCase() ||
-             team.includes(match.team2.name?.toLowerCase());
+      const team = p.team?.trim().toLowerCase() || '';
+      return team === team2ShortName.toLowerCase() ||
+             team.includes(team2Name.toLowerCase());
     };
 
     const team1Players = allPlayers.filter(isTeam1);

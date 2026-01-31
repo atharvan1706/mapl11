@@ -35,6 +35,10 @@ const predictionSchema = new mongoose.Schema({
   isLocked: {
     type: Boolean,
     default: false
+  },
+  isScored: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

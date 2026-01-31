@@ -166,7 +166,13 @@ const calculateFantasyTeamPoints = (fantasyTeam, playerPointsMap) => {
   let totalPoints = 0;
 
   for (const player of fantasyTeam.players) {
-    const playerId = player.playerId.toString();
+    // Handle both populated (object with _id) and non-populated (ObjectId) cases
+    const playerId = player.playerId?._id
+      ? player.playerId._id.toString()
+      : player.playerId?.toString();
+
+    if (!playerId) continue;
+
     let playerPoints = playerPointsMap[playerId] || 0;
 
     // Apply captain/vice-captain multipliers

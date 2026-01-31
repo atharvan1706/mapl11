@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import api from '../services/api'
 import { useToast } from '../hooks/useToast'
 import Loading from '../components/common/Loading'
+import ScorecardEntry from '../components/admin/ScorecardEntry'
+import CreatePlayerForm from '../components/admin/CreatePlayerForm'
 
 export default function AdminPage() {
   const { success, error: showError } = useToast()
@@ -25,6 +27,7 @@ export default function AdminPage() {
   // Match management state
   const [dbMatches, setDbMatches] = useState([])
   const [loadingMatches, setLoadingMatches] = useState(false)
+  const [selectedMatchForScorecard, setSelectedMatchForScorecard] = useState(null)
   const [newMatch, setNewMatch] = useState({
     team1Name: '',
     team1ShortName: '',
@@ -207,10 +210,10 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (activeTab === 'database') {
+    if (activeTab === 'database' || activeTab === 'create-player') {
       fetchDbPlayers()
     }
-    if (activeTab === 'matches') {
+    if (activeTab === 'matches' || activeTab === 'scorecard') {
       fetchDbMatches()
     }
   }, [activeTab])
@@ -282,7 +285,20 @@ export default function AdminPage() {
       const response = await api.post(`/admin/calculate-points/${matchId}`, {
         useApi: true // Try API first, fall back to random test points
       })
-      success(`Points calculated for ${response.data.teamsUpdated} teams`)
+      success(`Points calculated for ${response.data.teamsUpdated} teams, ${response.data.usersUpdated || 0} users updated`)
+    } catch (err) {
+      showError(err.message)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const recalculateUserStats = async () => {
+    if (!confirm('Recalculate all user stats from their fantasy teams and predictions?')) return
+    try {
+      setSyncing(true)
+      const response = await api.post('/admin/recalculate-user-stats')
+      success(`Updated stats for ${response.data.updated} users`)
     } catch (err) {
       showError(err.message)
     } finally {
@@ -296,6 +312,25 @@ export default function AdminPage() {
     <div className="admin-page">
       <h1 className="mb-md">Admin Panel</h1>
 
+      {/* Quick Actions */}
+      <div className="card mb-md">
+        <div className="card-header">Quick Actions</div>
+        <div className="card-body">
+          <div className="btn-group">
+            <button
+              className="btn btn-primary"
+              onClick={recalculateUserStats}
+              disabled={syncing}
+            >
+              {syncing ? 'Calculating...' : 'Recalculate All User Stats'}
+            </button>
+          </div>
+          <p className="text-sm text-gray mt-sm">
+            Use this to sync overall leaderboard if user stats are out of sync.
+          </p>
+        </div>
+      </div>
+
       {/* API Status */}
       <div className="card mb-md">
         <div className="card-header">Cricket API Status</div>
@@ -306,7 +341,7 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="status-badge warning">
-              API Key Not Configured
+              API Key Not Configured - Manual Mode Active
             </div>
           )}
           {apiStatus?.configured && !apiStatus?.connected && apiStatus?.error && (
@@ -322,8 +357,7 @@ export default function AdminPage() {
           )}
           {!apiStatus?.configured && (
             <p className="text-sm text-gray mt-sm">
-              Add your CricketData.org API key to server/.env file:<br/>
-              <code>CRICKET_API_KEY=your-api-key</code>
+              Running in manual mode. Create matches, add players, and enter scorecards manually.
             </p>
           )}
         </div>
@@ -334,28 +368,34 @@ export default function AdminPage() {
         {/* Tabs */}
         <div className="tabs mb-md">
             <button
-              className={`tab ${activeTab === 'sync' ? 'active' : ''}`}
-              onClick={() => setActiveTab('sync')}
-            >
-              Sync Data
-            </button>
-            <button
               className={`tab ${activeTab === 'matches' ? 'active' : ''}`}
               onClick={() => setActiveTab('matches')}
             >
               Matches
             </button>
             <button
-              className={`tab ${activeTab === 'players' ? 'active' : ''}`}
-              onClick={() => setActiveTab('players')}
+              className={`tab ${activeTab === 'scorecard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('scorecard')}
             >
-              Add Players
+              Scorecard
             </button>
             <button
               className={`tab ${activeTab === 'database' ? 'active' : ''}`}
               onClick={() => setActiveTab('database')}
             >
-              Players DB
+              Players
+            </button>
+            <button
+              className={`tab ${activeTab === 'create-player' ? 'active' : ''}`}
+              onClick={() => setActiveTab('create-player')}
+            >
+              Add Player
+            </button>
+            <button
+              className={`tab ${activeTab === 'sync' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sync')}
+            >
+              API Sync
             </button>
           </div>
 
@@ -718,6 +758,52 @@ export default function AdminPage() {
             </>
           )}
 
+          {/* Scorecard Tab */}
+          {activeTab === 'scorecard' && (
+            <>
+              {selectedMatchForScorecard ? (
+                <ScorecardEntry
+                  matchId={selectedMatchForScorecard._id}
+                  onClose={() => setSelectedMatchForScorecard(null)}
+                />
+              ) : (
+                <div className="card mb-md">
+                  <div className="card-header">Select Match for Scorecard Entry</div>
+                  <div className="card-body">
+                    {loadingMatches ? (
+                      <Loading />
+                    ) : dbMatches.length === 0 ? (
+                      <p className="text-gray">No matches found. Create a match first.</p>
+                    ) : (
+                      <div className="match-list">
+                        {dbMatches.map(match => (
+                          <div key={match._id} className="match-item clickable" onClick={() => setSelectedMatchForScorecard(match)}>
+                            <div className="match-info">
+                              <div className="match-name">
+                                {match.team1.name} vs {match.team2.name}
+                              </div>
+                              <div className="match-details text-sm text-gray">
+                                {match.venue} | {new Date(match.matchDate).toLocaleDateString()}
+                              </div>
+                              <span className={`status-badge ${match.status}`}>
+                                {match.status}
+                              </span>
+                            </div>
+                            <div className="match-actions">
+                              <button className="btn btn-primary">
+                                Enter Scorecard
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Database Tab */}
           {activeTab === 'database' && (
             <div className="card mb-md">
@@ -735,7 +821,7 @@ export default function AdminPage() {
                 {loadingPlayers ? (
                   <Loading />
                 ) : dbPlayers.length === 0 ? (
-                  <p className="text-gray">No players in database. Use "Add Players" tab to add some.</p>
+                  <p className="text-gray">No players in database. Use "Add Player" tab to add some.</p>
                 ) : (
                   <div className="player-list">
                     {dbPlayers.map(player => (
@@ -758,6 +844,14 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
+          )}
+
+          {/* Create Player Tab */}
+          {activeTab === 'create-player' && (
+            <CreatePlayerForm onSuccess={() => {
+              if (activeTab === 'database') fetchDbPlayers()
+              success('Player created successfully')
+            }} />
           )}
       </>
 
@@ -924,6 +1018,13 @@ export default function AdminPage() {
         .status-badge.completed {
           background: rgba(22, 163, 74, 0.1);
           color: var(--success);
+        }
+        .match-item.clickable {
+          cursor: pointer;
+          transition: border-color 0.2s;
+        }
+        .match-item.clickable:hover {
+          border-color: var(--primary);
         }
       `}</style>
     </div>
