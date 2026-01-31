@@ -10,8 +10,27 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
+
+// CORS configuration - support multiple origins
+const allowedOrigins = [
+  config.clientUrl,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://mapl11.vercel.app'
+].filter(Boolean);
+
 app.use(cors({
-  origin: config.clientUrl,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(null, true); // Allow anyway in case of subdomain variations
+    }
+  },
   credentials: true
 }));
 

@@ -7,9 +7,17 @@ const userSockets = new Map(); // userId -> socketId
 const matchRooms = new Map(); // matchId -> Set of socketIds
 
 const initializeSocket = (httpServer) => {
+  // Allow multiple origins for Socket.io
+  const allowedOrigins = [
+    config.clientUrl,
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://mapl11.vercel.app'
+  ].filter(Boolean);
+
   io = new Server(httpServer, {
     cors: {
-      origin: config.clientUrl,
+      origin: allowedOrigins,
       methods: ['GET', 'POST'],
       credentials: true
     }
